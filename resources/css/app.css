@@ -1,35 +1,770 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-size: 16px;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --cream: #F9F8F6;
-  --cream-cool: #F0EFEA;
-  --ink: #000000;
-  --mint: #A7F3D0;
-  --yellow: #FDE047;
-  --pink: #FECDD3;
-  --indigo-brut: #818CF8;
-  --background: var(--cream);
-  --foreground: var(--ink);
-  --input-background: #ffffff;
-  --destructive: #FB7185;
+    --font-size: 16px;
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+    --cream: #F9F8F6;
+    --cream-cool: #F0EFEA;
+    --ink: #1a1a1a;
+    --mint: #A7F3D0;
+    --yellow: #FDE047;
+    --pink: #FECDD3;
+    --indigo-brut: #818CF8;
+    --background: var(--cream);
+    --foreground: var(--ink);
+    --input-background: #ffffff;
+    --destructive: #FB7185;
+    --card-bg: #ffffff;
+    --sidebar-bg: var(--cream-cool);
+    --border-color: var(--ink);
+    --shadow-color: var(--ink);
+    --muted-text: rgba(26, 26, 26, 0.55);
+    --hover-lift: -2px;
+}
+
+.dark {
+    --cream: #0f172a;
+    --cream-cool: #1e293b;
+    --ink: #e2e8f0;
+    --background: #0c1222;
+    --foreground: #e2e8f0;
+    --input-background: #334155;
+    --card-bg: #1e293b;
+    --sidebar-bg: #151e2e;
+    --border-color: #475569;
+    --shadow-color: #0f172a;
+    --muted-text: rgba(226, 232, 240, 0.55);
+    --mint: #6ee7b7;
+    --pink: #fda4af;
+    --yellow: #facc15;
+    --indigo-brut: #818CF8;
+    --destructive: #fb7185;
 }
 
 @layer base {
-  html { font-size: var(--font-size); font-family: var(--font-sans); }
-  body { background-color: var(--background); color: var(--foreground); font-weight: 500; }
-  label { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+    html {
+        font-size: var(--font-size);
+        font-family: var(--font-sans);
+        transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    body {
+        background-color: var(--background);
+        color: var(--foreground);
+        font-weight: 500;
+    }
+
+    label {
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    *,
+    *::before,
+    *::after {
+        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+}
+
+@layer components {
+
+    /* Neo-Brutalist Stat Card */
+    .neo-stat-card {
+        padding: 1.25rem 1.5rem;
+        position: relative;
+    }
+
+    .neo-stat-card .stat-label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.75rem;
+        color: var(--ink);
+    }
+
+    .neo-stat-card .stat-number {
+        font-size: 3rem;
+        font-weight: 900;
+        line-height: 1;
+        color: var(--ink);
+        margin-bottom: 1rem;
+    }
+
+    .neo-stat-card .stat-divider {
+        width: 100%;
+        height: 2px;
+        background-color: var(--ink);
+        opacity: 0.15;
+        margin-bottom: 0.75rem;
+    }
+
+    .neo-stat-card .stat-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--ink);
+    }
+
+    .neo-stat-card .stat-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        color: #16a34a;
+    }
+
+    /* TIP Box */
+    .neo-tip-box {
+        background-color: var(--yellow);
+        border: 2px solid var(--border-color);
+        padding: 0.875rem 1rem;
+        margin: 1rem;
+    }
+
+    .dark .neo-tip-box {
+        background-color: rgba(250, 204, 21, 0.15);
+        border-color: var(--border-color);
+    }
+
+    .neo-tip-box p {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1.4;
+    }
+
+    .neo-tip-box .tip-label {
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.25rem;
+        display: block;
+    }
+
+    .neo-tip-box .key-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        border: 2px solid var(--border-color);
+        background: var(--card-bg);
+        font-size: 0.65rem;
+        font-weight: 900;
+        vertical-align: middle;
+    }
+
+    /* Progress bar */
+    .neo-progress-track {
+        width: 100%;
+        height: 1.75rem;
+        border: 2px solid var(--border-color);
+        background: var(--card-bg);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .neo-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+        display: flex;
+        align-items: center;
+        padding-left: 0.75rem;
+        transition: width 0.5s ease;
+    }
+
+    .neo-progress-fill span {
+        font-size: 0.65rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: white;
+        white-space: nowrap;
+    }
+
+    /* Notification dot */
+    .notification-dot {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        width: 10px;
+        height: 10px;
+        background: #ef4444;
+        border-radius: 50%;
+        border: 2px solid var(--card-bg);
+        animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    /* Task row */
+    .task-row {
+        display: flex;
+        align-items: center;
+        padding: 1rem 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        cursor: pointer;
+        transition: background-color 0.1s ease;
+    }
+
+    .dark .task-row {
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .task-row:last-child {
+        border-bottom: none;
+    }
+
+    .task-row:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+
+    .dark .task-row:hover {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    .task-row.completed .task-title {
+        text-decoration: line-through;
+        opacity: 0.5;
+    }
+
+    /* Check circle */
+    .check-circle {
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 2px solid var(--border-color);
+        border-radius: 50%;
+        flex-shrink: 0;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        background: transparent;
+    }
+
+    .check-circle:hover {
+        background: var(--mint);
+        transform: scale(1.1);
+    }
+
+    .check-circle.checked {
+        background: var(--mint);
+    }
+
+    /* Kanban drop zone */
+    .kanban-column-drop {
+        min-height: 120px;
+        transition: background-color 0.15s ease, outline 0.15s ease;
+        outline: 2px dashed transparent;
+    }
+
+    .kanban-column-drop.drag-over {
+        background-color: rgba(0, 0, 0, 0.03);
+        outline-color: var(--border-color);
+    }
+
+    .dark .kanban-column-drop.drag-over {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    /* Dragging card */
+    .kanban-card-dragging {
+        opacity: 0.5;
+        transform: rotate(2deg);
+    }
+
+    /* Priority badges */
+    .badge-high {
+        background: var(--pink);
+        border: 2px solid var(--border-color);
+        color: var(--ink);
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.15rem 0.5rem;
+    }
+
+    .badge-medium {
+        background: var(--yellow);
+        border: 2px solid var(--border-color);
+        color: var(--ink);
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.15rem 0.5rem;
+    }
+
+    .badge-low {
+        background: var(--mint);
+        border: 2px solid var(--border-color);
+        color: var(--ink);
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.15rem 0.5rem;
+    }
+
+    /* Role badge */
+    .badge-admin {
+        background: var(--indigo-brut);
+        border: 2px solid var(--border-color);
+        color: #fff;
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.15rem 0.5rem;
+    }
+
+    .badge-user {
+        background: var(--mint);
+        border: 2px solid var(--border-color);
+        color: var(--ink);
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.15rem 0.5rem;
+    }
+
+    /* Role toggle pill */
+    .role-toggle-pill {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        height: 2.5rem;
+        padding: 0 0.875rem;
+        border: 2px solid var(--border-color);
+        font-size: 0.65rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: transform 0.1s, box-shadow 0.1s, background-color 0.15s;
+    }
+
+    .role-toggle-pill:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 4px 4px 0 0 var(--shadow-color);
+    }
+
+    .role-toggle-pill:active {
+        transform: translate(2px, 2px);
+        box-shadow: 0 0 0 0 var(--shadow-color);
+    }
+
+    .role-toggle-pill .role-indicator {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        border: 1.5px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    /* Neo Tab Bar */
+    .neo-tab-bar {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .neo-tab {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.7rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        border: 2px solid var(--border-color);
+        border-bottom: none;
+        margin-bottom: -2px;
+        cursor: pointer;
+        background: var(--card-bg);
+        color: var(--ink);
+        transition: background-color 0.12s, color 0.12s, transform 0.1s;
+    }
+
+    .neo-tab:hover:not(.active) {
+        background: var(--yellow);
+    }
+
+    .neo-tab.active {
+        background: var(--ink);
+        color: var(--card-bg);
+        box-shadow: 2px -2px 0 0 var(--shadow-color);
+    }
+
+    /* Neo Toggle (Team/My Tasks) */
+    .neo-toggle-group {
+        display: flex;
+        border: 2px solid var(--border-color);
+    }
+
+    .neo-toggle-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.65rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        background: var(--card-bg);
+        color: var(--ink);
+        border: none;
+        border-right: 2px solid var(--border-color);
+        transition: background-color 0.12s, color 0.12s;
+    }
+
+    .neo-toggle-btn:last-child {
+        border-right: none;
+    }
+
+    .neo-toggle-btn:hover:not(.active) {
+        background: var(--yellow);
+    }
+
+    .neo-toggle-btn.active {
+        background: var(--ink);
+        color: var(--card-bg);
+    }
+
+    /* Admin Filter Bar */
+    .neo-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--border-color);
+        background: var(--card-bg);
+        box-shadow: 2px 2px 0 0 var(--shadow-color);
+        flex-wrap: wrap;
+    }
+
+    .neo-filter-bar label {
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted-text);
+        margin: 0;
+    }
+
+    .neo-select {
+        appearance: none;
+        padding: 0.4rem 2rem 0.4rem 0.75rem;
+        border: 2px solid var(--border-color);
+        background: var(--card-bg);
+        color: var(--ink);
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231a1a1a' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.5rem center;
+    }
+
+    .dark .neo-select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23e2e8f0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    }
+
+    .neo-select:focus {
+        outline: none;
+        box-shadow: 3px 3px 0 0 var(--shadow-color);
+    }
+
+    /* Neo Data Table */
+    .neo-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .neo-table thead th {
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted-text);
+        text-align: left;
+        padding: 0.75rem 1rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .neo-table tbody td {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--ink);
+        padding: 0.875rem 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        vertical-align: middle;
+    }
+
+    .dark .neo-table tbody td {
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .neo-table tbody tr {
+        transition: background-color 0.1s ease;
+    }
+
+    .neo-table tbody tr:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+
+    .dark .neo-table tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    .neo-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Workspace Card */
+    .workspace-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        border: 2px solid var(--border-color);
+        background: var(--card-bg);
+        transition: transform 0.1s, box-shadow 0.1s;
+        cursor: default;
+    }
+
+    .workspace-card:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 3px 3px 0 0 var(--shadow-color);
+    }
+
+    .workspace-card .ws-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 0.75rem;
+        border: 2px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    .workspace-card .ws-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .workspace-card .ws-name {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: var(--ink);
+    }
+
+    .workspace-card .ws-meta {
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--muted-text);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    /* Small action button (table rows) */
+    .neo-action-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.55rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border: 2px solid var(--border-color);
+        background: var(--card-bg);
+        color: var(--ink);
+        cursor: pointer;
+        transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .neo-action-btn:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 0 var(--shadow-color);
+        background: var(--yellow);
+    }
+
+    .neo-action-btn:active {
+        transform: translate(1px, 1px);
+        box-shadow: 0 0 0 0 var(--shadow-color);
+    }
 }
 
 @layer utilities {
-  .brut-border { border: 2px solid var(--ink); }
-  .brut-shadow { box-shadow: 4px 4px 0 0 var(--ink); }
-  .brut-shadow-sm { box-shadow: 2px 2px 0 0 var(--ink); }
-  .brut-hover { transition: transform 0.1s, box-shadow 0.1s; }
-  .brut-hover:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 var(--ink); }
-  .brut-hover:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 var(--ink); }
-  .uppercase-label { text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; }
+    .brut-border {
+        border: 2px solid var(--border-color);
+    }
+
+    .brut-shadow {
+        box-shadow: 4px 4px 0 0 var(--shadow-color);
+    }
+
+    .brut-shadow-sm {
+        box-shadow: 2px 2px 0 0 var(--shadow-color);
+    }
+
+    .brut-hover {
+        transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .brut-hover:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 6px 6px 0 0 var(--shadow-color);
+    }
+
+    .brut-hover:active {
+        transform: translate(2px, 2px);
+        box-shadow: 0 0 0 0 var(--shadow-color);
+    }
+
+    .uppercase-label {
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 800;
+    }
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.3);
+        opacity: 0.7;
+    }
+}
+
+@keyframes modal-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-enter-active {
+    animation: modal-in 0.2s ease-out;
+}
+
+.modal-leave-active {
+    animation: modal-in 0.15s ease-in reverse;
+}
+
+.dropdown-enter-active {
+    animation: slide-down 0.15s ease-out;
+}
+
+.dropdown-leave-active {
+    animation: slide-down 0.1s ease-in reverse;
+}
+
+/* ─── Toast Notifications ─────────────────────────────────── */
+@keyframes toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(40px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes toast-slide-out {
+    from {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(40px) scale(0.95);
+    }
+}
+
+.toast-enter-active {
+    animation: toast-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-leave-active {
+    animation: toast-slide-out 0.18s ease-in;
+}
+
+.toast-move {
+    transition: transform 0.2s ease;
+}
+
+/* ─── Mobile Sidebar Drawer ───────────────────────────────── */
+@keyframes drawer-in {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes drawer-out {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+.drawer-enter-active {
+    animation: drawer-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-leave-active {
+    animation: drawer-out 0.2s ease-in;
+}
+
+/* Backdrop fade */
+.fade-enter-active {
+    transition: opacity 0.2s ease;
+}
+
+.fade-leave-active {
+    transition: opacity 0.18s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
 }

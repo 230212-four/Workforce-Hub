@@ -1,34 +1,46 @@
 <script setup>
-import NeoCard from '../ui/NeoCard.vue'
-
-defineProps({
-  task: {
-    type: Object,
-    required: true
-  }
+const props = defineProps({
+  task: { type: Object, required: true }
 })
+
+const emit = defineEmits(['click', 'dragstart'])
+
+const getPriorityClass = (priority) => {
+  const map = { high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }
+  return map[priority] || 'badge-medium'
+}
+
+const handleDragStart = (e) => {
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', props.task.id)
+  e.target.classList.add('kanban-card-dragging')
+  emit('dragstart', props.task.id)
+}
+
+const handleDragEnd = (e) => {
+  e.target.classList.remove('kanban-card-dragging')
+}
 </script>
 
 <template>
-  <NeoCard colorClass="bg-white" paddingClass="p-4" interactive>
-    <div class="space-y-3">
-      <div class="flex items-center justify-between">
-        <span
-          :class="[
-            'text-xs uppercase-label px-2 py-1 brut-border',
-            task.priority === 'High' ? 'bg-neoPink' : 'bg-neoYellow'
-          ]"
-        >
-          {{ task.priority }}
-        </span>
-        <span class="text-xs font-black text-ink/50">{{ task.id }}</span>
-      </div>
+  <div
+    class="bg-neoCard brut-border brut-shadow-sm p-3.5 cursor-grab brut-hover active:cursor-grabbing"
+    draggable="true"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
+    @click="$emit('click', task)"
+  >
+    <p class="text-sm font-bold text-ink leading-tight mb-3">{{ task.title }}</p>
 
-      <p class="font-black text-ink text-sm leading-tight">{{ task.title }}</p>
-
-      <div class="pt-2 border-t-2 border-ink">
-        <p class="text-xs uppercase-label text-ink/60">{{ task.assignee }}</p>
-      </div>
+    <div class="flex items-center justify-between pt-2.5" style="border-top: 1px solid var(--border-color); opacity: 0.15;">
     </div>
-  </NeoCard>
+    <div class="flex items-center justify-between">
+      <span :class="getPriorityClass(task.priority)" class="flex-shrink-0">
+        {{ task.priority.toUpperCase() }}
+      </span>
+      <span v-if="task.dueDate" class="text-[0.6rem] font-bold text-neoMuted uppercase">
+        {{ task.dueDate }}
+      </span>
+    </div>
+  </div>
 </template>
