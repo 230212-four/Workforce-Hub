@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useNotifications } from '../../composables/useNotifications'
 import { useAuth } from '../../composables/useAuth'
 import NotificationDropdown from './NotificationDropdown.vue'
+import AccountSettingsModal from '../settings/AccountSettingsModal.vue'
 
 const emit = defineEmits(['toggle-sidebar'])
 
@@ -11,7 +12,8 @@ const router = useRouter()
 const { hasUnread } = useNotifications()
 const { currentUser, isAdmin, toggleRole } = useAuth()
 
-const showNotifications = ref(false)
+const showNotifications     = ref(false)
+const showAccountSettings   = ref(false)
 
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value
@@ -20,6 +22,9 @@ const toggleNotifications = () => {
 const closeNotifications = () => {
   showNotifications.value = false
 }
+
+const openAccountSettings  = () => { showAccountSettings.value = true  }
+const closeAccountSettings = () => { showAccountSettings.value = false }
 
 const goToSettings = () => {
   router.push('/settings')
@@ -106,16 +111,18 @@ const logout = () => {
         </svg>
       </button>
 
-      <!-- User Avatar -->
-      <div
+      <!-- User Avatar — click to open Account Settings -->
+      <button
         id="user-avatar"
         :class="[
-          'w-10 h-10 brut-border flex items-center justify-center font-black text-ink text-sm cursor-default',
+          'w-10 h-10 brut-border flex items-center justify-center font-black text-ink text-sm cursor-pointer brut-hover',
           isAdmin ? 'bg-neoPink' : 'bg-neoMint'
         ]"
+        @click="openAccountSettings"
+        title="Account Settings"
       >
         {{ currentUser.initials }}
-      </div>
+      </button>
 
       <!-- Logout — hidden on very small screens to avoid overflow -->
       <button
@@ -130,4 +137,10 @@ const logout = () => {
       </button>
     </div>
   </header>
+
+  <!-- Account Settings Modal (teleported outside header flow) -->
+  <AccountSettingsModal
+    :isOpen="showAccountSettings"
+    @close="closeAccountSettings"
+  />
 </template>
