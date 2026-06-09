@@ -20,8 +20,15 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'username',
         'email',
         'password',
+        'phone',
+        'department',
+        'role',
+        'is_active',
+        'workspace_id',
+        'team_id',
     ];
 
     /**
@@ -32,6 +39,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'api_token_hash',
     ];
 
     /**
@@ -44,6 +52,38 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    public function workspace()
+    {
+        return $this->belongsTo(Workspace::class);
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    public function createdWorkspaces()
+    {
+        return $this->hasMany(Workspace::class, 'created_by_user_id');
+    }
+
+    public function createdTasks()
+    {
+        return $this->hasMany(Task::class, 'created_by_user_id');
+    }
+
+    public function assignedTasks()
+    {
+        return $this->belongsToMany(Task::class, 'task_assignees')->withTimestamps();
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(SystemNotification::class);
     }
 }

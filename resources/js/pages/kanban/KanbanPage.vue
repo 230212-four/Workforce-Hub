@@ -7,10 +7,22 @@ import { useToast } from '../../composables/useToast'
 
 const openCreateModal = inject('openCreateModal')
 const openEditModal = inject('openEditModal')
-
-const { moveTask, teams, members, getFilteredColumns, getUserColumns, tasks } = useTaskStore()
-const { isAdmin, currentUser } = useAuth()
 const { addToast } = useToast()
+
+const {
+  tasks,
+  moveTask,
+  deleteTask,
+  updateTask,
+  canEditTask,
+  canDeleteTask,
+  canMoveTask,
+  teams,
+  members,
+  getFilteredColumns,
+  getUserColumns
+} = useTaskStore()
+const { isAdmin, isAuthenticated, currentUser } = useAuth()
 
 // ── Admin filters ──
 const adminTeamFilter = ref('all')
@@ -25,6 +37,8 @@ const userColumns = getUserColumns(showOnlyMine)
 const activeColumns = computed(() => {
   return isAdmin.value ? adminColumns.value : userColumns.value
 })
+
+const hasTasks = computed(() => activeColumns.value.some(column => column.tasks.length > 0))
 
 const dragOverColumn = ref(null)
 
@@ -48,13 +62,13 @@ const handleDragLeave = (e, columnId) => {
   }
 }
 
-const handleDrop = (e, columnId) => {
+const handleDrop = async (e, columnId) => {
   e.preventDefault()
   const taskId = e.dataTransfer.getData('text/plain')
-  if (taskId) {
+  const task = tasks.value.find(item => String(item.id) === String(taskId))
+  if (taskId && task && canMoveTask(task)) {
     // Double-check permission on drop side too
-    const task = tasks.value.find(t => t.id === taskId)
-    if (!isAdmin.value && task && task.assignedTo !== currentUser.value.name) {
+    if (!isAdmin.value && task.assignedTo !== currentUser.value.name) {
       addToast({
         message: 'Permission Denied: You can only move your own tasks.',
         type: 'error'
@@ -62,7 +76,12 @@ const handleDrop = (e, columnId) => {
       dragOverColumn.value = null
       return
     }
-    moveTask(taskId, columnId)
+    try {
+      await moveTask(task.id, columnId)
+      addToast({ message: 'Task status updated.', type: 'success' })
+    } catch (error) {
+      addToast({ message: error?.message || 'Unable to move the task.', type: 'error' })
+    }
   }
   dragOverColumn.value = null
 }
@@ -81,7 +100,14 @@ const handleCardClick = (task, event) => {
     }
     selectedCards.value = newSet
   } else {
-    openEditModal(task)
+    if (canEditTask(task)) {
+      openEditModal(task)
+    } else {
+      addToast({
+        message: 'You can only open tasks assigned to you or created by you.',
+        type: 'error'
+      })
+    }
   }
 }
 
@@ -90,39 +116,72 @@ const clearSelection = () => {
 }
 
 // ── Bulk actions ──
-const bulkArchive = () => {
+const bulkArchive = async () => {
+  const promises = []
   selectedCards.value.forEach(taskId => {
-    moveTask(taskId, 'done')
+    promises.push(moveTask(taskId, 'done'))
   })
-  addToast({ message: `${selectedCards.value.size} task(s) archived.`, type: 'success' })
+  try {
+    await Promise.all(promises)
+    addToast({ message: `${selectedCards.value.size} task(s) archived.`, type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.message || 'Unable to archive some tasks.', type: 'error' })
+  }
   clearSelection()
 }
 
-const bulkReassign = () => {
-  const { updateTask } = useTaskStore()
+const bulkReassign = async () => {
+  const promises = []
   selectedCards.value.forEach(taskId => {
-    updateTask(taskId, { assignedTo: currentUser.value.name })
+    promises.push(updateTask(taskId, { assignedTo: currentUser.value.name }))
   })
-  addToast({ message: `${selectedCards.value.size} task(s) reassigned to you.`, type: 'success' })
+  try {
+    await Promise.all(promises)
+    addToast({ message: `${selectedCards.value.size} task(s) reassigned to you.`, type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.message || 'Unable to reassign some tasks.', type: 'error' })
+  }
   clearSelection()
 }
 
 const hasSelection = computed(() => selectedCards.value.size > 0)
 
+// ── Task deletion (from develop) ──
+const handleTaskDelete = async (task) => {
+  if (!canDeleteTask(task)) {
+    return
+  }
+
+  if (!window.confirm(`Delete task "${task.title}"? This action cannot be undone.`)) {
+    return
+  }
+
+  try {
+    await deleteTask(task.id)
+    addToast({ message: 'Task deleted successfully.', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.message || 'Unable to delete the task.', type: 'error' })
+  }
+}
+
 // ── Keyboard-driven column movement ──
 const statusOrder = ['todo', 'in-progress', 'review', 'done']
 
-const handleMoveLeft = (taskId) => {
-  const task = tasks.value.find(t => t.id === taskId)
+const handleMoveLeft = async (taskId) => {
+  const task = tasks.value.find(t => String(t.id) === String(taskId))
   if (!task) return
   // Permission check for users
-  if (!isAdmin.value && task.assignedTo !== currentUser.value.name) {
+  if (!canMoveTask(task)) {
     addToast({ message: 'Permission Denied: You can only move your own tasks.', type: 'error' })
     return
   }
   const currentIndex = statusOrder.indexOf(task.status)
   if (currentIndex > 0) {
-    moveTask(taskId, statusOrder[currentIndex - 1])
+    try {
+      await moveTask(taskId, statusOrder[currentIndex - 1])
+    } catch (error) {
+      addToast({ message: error?.message || 'Unable to move the task.', type: 'error' })
+    }
     // Re-focus the card after Vue re-renders
     nextTick(() => {
       const card = document.querySelector(`[data-task-id="${taskId}"]`)
@@ -131,17 +190,21 @@ const handleMoveLeft = (taskId) => {
   }
 }
 
-const handleMoveRight = (taskId) => {
-  const task = tasks.value.find(t => t.id === taskId)
+const handleMoveRight = async (taskId) => {
+  const task = tasks.value.find(t => String(t.id) === String(taskId))
   if (!task) return
   // Permission check for users
-  if (!isAdmin.value && task.assignedTo !== currentUser.value.name) {
+  if (!canMoveTask(task)) {
     addToast({ message: 'Permission Denied: You can only move your own tasks.', type: 'error' })
     return
   }
   const currentIndex = statusOrder.indexOf(task.status)
   if (currentIndex < statusOrder.length - 1) {
-    moveTask(taskId, statusOrder[currentIndex + 1])
+    try {
+      await moveTask(taskId, statusOrder[currentIndex + 1])
+    } catch (error) {
+      addToast({ message: error?.message || 'Unable to move the task.', type: 'error' })
+    }
     nextTick(() => {
       const card = document.querySelector(`[data-task-id="${taskId}"]`)
       if (card) card.focus()
@@ -179,6 +242,7 @@ const getColumnBodyBg = (colId) => {
         <p class="text-xs font-bold text-neoMuted uppercase tracking-wide">Drag and drop tasks between columns to update status.</p>
       </div>
       <button
+        v-if="isAuthenticated"
         @click="openCreateModal"
         class="flex items-center gap-2 px-5 py-2.5 bg-ink text-white brut-border brut-hover font-black text-xs uppercase tracking-wide cursor-pointer flex-shrink-0"
         style="border-color: var(--border-color);"
@@ -225,7 +289,7 @@ const getColumnBodyBg = (colId) => {
       <label>Team</label>
       <select id="filter-team" v-model="adminTeamFilter" class="neo-select">
         <option value="all">All Teams</option>
-        <option v-for="t in teams" :key="t" :value="t">{{ t }}</option>
+        <option v-for="t in teams" :key="t.id" :value="t.name">{{ t.name }}</option>
       </select>
 
       <label>User</label>
@@ -266,6 +330,9 @@ const getColumnBodyBg = (colId) => {
          Desktop: standard 4-column grid
     -->
     <div class="flex flex-nowrap overflow-x-auto gap-4 snap-x snap-mandatory pb-4 md:grid md:grid-cols-2 md:flex-wrap md:overflow-x-visible lg:grid-cols-4 -mx-1 px-1">
+      <div v-if="!hasTasks" class="col-span-full brut-border brut-shadow bg-neoCard p-6 text-center">
+        <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No tasks available</p>
+      </div>
       <div
         v-for="column in activeColumns"
         :key="column.id"
@@ -303,7 +370,10 @@ const getColumnBodyBg = (colId) => {
             :key="task.id"
             :task="task"
             :isSelected="selectedCards.has(task.id)"
+            :draggable="canMoveTask(task)"
+            :can-delete="canDeleteTask(task)"
             @click="handleCardClick(task, $event)"
+            @delete="handleTaskDelete"
             @move-left="handleMoveLeft"
             @move-right="handleMoveRight"
           />

@@ -8,9 +8,11 @@ import ToastContainer from '../ui/ToastContainer.vue'
 import CommandPalette from '../ui/CommandPalette.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useToast } from '../../composables/useToast'
+import { useAuth } from '../../composables/useAuth'
 
-const { addTask, updateTask } = useTaskStore()
+const { createTask, updateTask, loadInitialData } = useTaskStore()
 const { addToast } = useToast()
+const { isAuthenticated } = useAuth()
 
 // ── Modal state ──
 const showCreateModal = ref(false)
@@ -29,18 +31,26 @@ const closeEditModal = () => {
   editingTask.value = null
 }
 
-const handleCreateTask = (taskData) => {
-  addTask(taskData)
-  closeCreateModal()
-  addToast({ message: 'Task created successfully!', type: 'success' })
+const handleCreateTask = async (taskData) => {
+  try {
+    await createTask(taskData)
+    closeCreateModal()
+    addToast({ message: 'Task created successfully!', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || error?.message || 'Unable to create the task.', type: 'error' })
+  }
 }
 
-const handleSaveTask = (taskData) => {
-  if (taskData.id) {
-    updateTask(taskData.id, taskData)
+const handleSaveTask = async (taskData) => {
+  if (!taskData.id) return
+
+  try {
+    await updateTask(taskData.id, taskData)
+    closeEditModal()
+    addToast({ message: 'Task updated successfully!', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || error?.message || 'Unable to update the task.', type: 'error' })
   }
-  closeEditModal()
-  addToast({ message: 'Task updated successfully!', type: 'success' })
 }
 
 // ── Mobile sidebar state ──
@@ -53,9 +63,8 @@ const closeCommandPalette = () => { showCommandPalette.value = false }
 
 // ── Global hotkeys ──
 const handleKeydown = (e) => {
-  // Skip if inside form fields
+  // Skip if inside form fields (but still allow Cmd/Ctrl+K)
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
-    // But still allow Cmd/Ctrl+K inside inputs
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault()
       openCommandPalette()
@@ -70,8 +79,8 @@ const handleKeydown = (e) => {
     return
   }
 
-  // Don't handle other shortcuts when modals/palette are open
-  if (showCreateModal.value || showEditModal.value || showCommandPalette.value) return
+  // Don't handle other shortcuts when modals/palette are open or user is unauthenticated
+  if (showCreateModal.value || showEditModal.value || showCommandPalette.value || !isAuthenticated.value) return
 
   // 'N' opens create task modal
   if (e.key === 'n' || e.key === 'N') {
@@ -80,7 +89,10 @@ const handleKeydown = (e) => {
   }
 }
 
-onMounted(() => { document.addEventListener('keydown', handleKeydown) })
+onMounted(() => {
+  loadInitialData()
+  document.addEventListener('keydown', handleKeydown)
+})
 onUnmounted(() => { document.removeEventListener('keydown', handleKeydown) })
 
 // Provide modal + toast controls to child pages

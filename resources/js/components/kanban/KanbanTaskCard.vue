@@ -6,10 +6,12 @@ import { renderMarkdownTruncated } from '../../composables/useMarkdown'
 
 const props = defineProps({
   task: { type: Object, required: true },
-  isSelected: { type: Boolean, default: false }
+  isSelected: { type: Boolean, default: false },
+  draggable: { type: Boolean, default: true },
+  canDelete: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['click', 'dragstart', 'move-left', 'move-right'])
+const emit = defineEmits(['click', 'dragstart', 'delete', 'move-left', 'move-right'])
 
 const { currentUser, isAdmin } = useAuth()
 const { addToast } = useToast()
@@ -27,6 +29,11 @@ const descriptionHtml = computed(() => {
 
 // ── Permission-guarded drag ──
 const handleDragStart = (e) => {
+  if (!props.draggable) {
+    e.preventDefault()
+    return
+  }
+
   // If user role and task is NOT assigned to them → deny
   if (!isAdmin.value && props.task.assignedTo !== currentUser.value.name) {
     e.preventDefault()
@@ -39,12 +46,17 @@ const handleDragStart = (e) => {
 
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', props.task.id)
-  e.target.classList.add('kanban-card-dragging')
+  e.currentTarget.classList.add('kanban-card-dragging')
   emit('dragstart', props.task.id)
 }
 
 const handleDragEnd = (e) => {
-  e.target.classList.remove('kanban-card-dragging')
+  e.currentTarget.classList.remove('kanban-card-dragging')
+}
+
+const handleDelete = (e) => {
+  e.stopPropagation()
+  emit('delete', props.task)
 }
 
 // ── Keyboard navigation: Arrow keys move columns ──
@@ -62,10 +74,11 @@ const handleKeydown = (e) => {
 <template>
   <div
     :class="[
-      'bg-neoCard brut-border brut-shadow-sm p-3.5 cursor-grab brut-hover active:cursor-grabbing kanban-card-focus',
+      'bg-neoCard brut-border brut-shadow-sm p-3.5 brut-hover kanban-card-focus',
+      draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default opacity-90',
       isSelected ? 'kanban-card-selected' : ''
     ]"
-    draggable="true"
+    :draggable="draggable"
     tabindex="0"
     :data-task-id="task.id"
     @dragstart="handleDragStart"
@@ -73,7 +86,18 @@ const handleKeydown = (e) => {
     @click="$emit('click', task)"
     @keydown="handleKeydown"
   >
-    <p class="text-sm font-bold text-ink leading-tight mb-1">{{ task.title }}</p>
+    <div class="flex items-start justify-between gap-3 mb-1">
+      <p class="text-sm font-bold text-ink leading-tight">{{ task.title }}</p>
+      <button
+        v-if="canDelete"
+        type="button"
+        class="w-7 h-7 brut-border bg-white text-ink font-black brut-hover flex-shrink-0"
+        title="Delete task"
+        @click="handleDelete"
+      >
+        x
+      </button>
+    </div>
 
     <!-- Markdown description snippet -->
     <div
@@ -82,9 +106,9 @@ const handleKeydown = (e) => {
       v-html="descriptionHtml"
     ></div>
 
-    <div class="flex items-center justify-between pt-2.5" style="border-top: 1px solid var(--border-color); opacity: 0.15;">
-    </div>
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between pt-2.5" style="border-top: 1px solid var(--border-color); opacity: 0.15;"></div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <span :class="getPriorityClass(task.priority)" class="flex-shrink-0">
         {{ task.priority.toUpperCase() }}
       </span>
@@ -92,5 +116,9 @@ const handleKeydown = (e) => {
         {{ task.dueDate }}
       </span>
     </div>
+
+    <p class="mt-2 text-[0.65rem] font-black uppercase tracking-wide text-neoMuted">
+      {{ task.assigneeSummary || 'Add a Member' }}
+    </p>
   </div>
 </template>

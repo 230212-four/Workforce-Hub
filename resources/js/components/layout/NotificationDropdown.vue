@@ -13,26 +13,26 @@ const { notifications, unreadCount, markRead, markAllRead } = useNotifications()
 const dropdownRef = ref(null)
 
 const typeIcons = {
-  warning: '⚠️',
-  success: '✅',
-  info: 'ℹ️'
+  warning: '!',
+  success: '✓',
+  info: 'i',
+  error: '!'
 }
 
 const handleClickOutside = (e) => {
   if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
-    // Check if click was on the bell button
     const bell = document.getElementById('notification-bell')
     if (bell && bell.contains(e.target)) return
     emit('close')
   }
 }
 
-const handleMarkAllRead = () => {
-  markAllRead()
+const handleMarkAllRead = async () => {
+  await markAllRead()
 }
 
-const handleNotifClick = (notif) => {
-  markRead(notif.id)
+const handleNotifClick = async (notif) => {
+  await markRead(notif.id)
 }
 
 onMounted(() => {
@@ -51,7 +51,6 @@ onUnmounted(() => {
       ref="dropdownRef"
       class="absolute top-full right-0 mt-2 w-80 bg-neoCard brut-border brut-shadow z-50"
     >
-      <!-- Header -->
       <div class="flex items-center justify-between px-4 py-3 brut-border border-l-0 border-r-0 border-t-0">
         <h3 class="text-xs font-black uppercase tracking-wider text-ink">
           Notifications
@@ -68,8 +67,11 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- Notification List -->
       <div class="max-h-72 overflow-y-auto">
+        <div v-if="notifications.length === 0" class="px-4 py-8 text-center">
+          <p class="text-xs font-bold text-neoMuted uppercase">No notifications</p>
+        </div>
+
         <div
           v-for="notif in notifications"
           :key="notif.id"
@@ -80,7 +82,7 @@ onUnmounted(() => {
           ]"
         >
           <div class="flex items-start gap-3">
-            <span class="text-base mt-0.5 flex-shrink-0">{{ typeIcons[notif.type] || 'ℹ️' }}</span>
+            <span class="text-base mt-0.5 flex-shrink-0">{{ typeIcons[notif.type] || 'i' }}</span>
             <div class="flex-1 min-w-0">
               <p class="text-xs font-black text-ink leading-tight">{{ notif.title }}</p>
               <p class="text-[0.7rem] text-neoMuted mt-0.5 leading-snug">{{ notif.message }}</p>
@@ -89,11 +91,6 @@ onUnmounted(() => {
             <span v-if="!notif.read" class="w-2 h-2 bg-destructive rounded-full flex-shrink-0 mt-1.5"></span>
           </div>
         </div>
-      </div>
-
-      <!-- Empty state -->
-      <div v-if="notifications.length === 0" class="px-4 py-8 text-center">
-        <p class="text-xs font-bold text-neoMuted uppercase">No notifications</p>
       </div>
     </div>
   </transition>

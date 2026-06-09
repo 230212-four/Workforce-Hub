@@ -7,12 +7,13 @@ import { useToast } from '../../composables/useToast'
 
 const openCreateModal = inject('openCreateModal')
 const openEditModal = inject('openEditModal')
+const { addToast } = useToast()
 
 const { currentUser, isAdmin } = useAuth()
-const { addToast } = useToast()
 
 const {
   tasks,
+  userTasks,
   totalTasks,
   completedTasks,
   inProgressTasks,
@@ -24,6 +25,8 @@ const {
   userOverdueTasks,
   userCompletionRate,
   toggleComplete,
+  canEditTask,
+  canMoveTask,
   statusLabels
 } = useTaskStore()
 
@@ -33,13 +36,18 @@ const displayCompleted = computed(() => isAdmin.value ? completedTasks.value : u
 const displayInProgress = computed(() => isAdmin.value ? inProgressTasks.value : userInProgressTasks.value)
 const displayOverdue = computed(() => isAdmin.value ? overdueTasks.value : userOverdueTasks.value)
 const displayRate = computed(() => isAdmin.value ? completionRate.value : userCompletionRate.value)
-const statsPeriod = computed(() => isAdmin.value ? 'ALL WORKSPACE' : 'YOUR TASKS')
+const statsPeriod = computed(() => isAdmin.value ? 'ALL WORKSPACE' : 'ALL TASKS')
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
   if (hour < 12) return 'Good morning'
   if (hour < 18) return 'Good afternoon'
   return 'Good evening'
+})
+
+const userFirstName = computed(() => {
+  const trimmedName = currentUser.value.name?.trim() || ''
+  return trimmedName.split(/\s+/)[0] || ''
 })
 
 const dateString = computed(() => {
@@ -52,31 +60,43 @@ const dateString = computed(() => {
 const recentTasks = computed(() => {
   const pool = isAdmin.value
     ? tasks.value
-    : tasks.value.filter(t => t.assignedTo === currentUser.value.name)
+    : userTasks.value
   return pool.slice().sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1
     return 0
   })
 })
 
-const handleToggleComplete = (e, taskId) => {
+const handleToggleComplete = async (e, taskId) => {
   e.stopPropagation()
-  // Permission guard: users can only check their own tasks
-  if (!isAdmin.value) {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (task && task.assignedTo !== currentUser.value.name) {
-      addToast({
-        message: 'Permission Denied: You can only complete your own tasks.',
-        type: 'error'
-      })
-      return
-    }
+
+  const task = recentTasks.value.find(item => item.id === taskId)
+  if (!task || !canMoveTask(task)) {
+    addToast({
+      message: 'Permission Denied: You can only complete your own tasks.',
+      type: 'error'
+    })
+    return
   }
-  toggleComplete(taskId)
+
+  try {
+    await toggleComplete(taskId)
+    addToast({ message: 'Task updated successfully.', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.message || 'Unable to update the task.', type: 'error' })
+  }
 }
 
 const handleRowClick = (task) => {
-  openEditModal(task)
+  if (canEditTask(task)) {
+    openEditModal(task)
+    return
+  }
+
+  addToast({
+    message: 'You can only open tasks assigned to you or created by you.',
+    type: 'error'
+  })
 }
 
 const getPriorityClass = (priority) => {
@@ -96,15 +116,16 @@ const getStatusLabel = (status) => {
       <div>
         <p class="text-xs font-black uppercase tracking-wider text-neoMuted mb-1">{{ dateString }}</p>
         <h1 class="text-3xl font-black text-ink mb-1.5">
-          {{ greeting }}, {{ currentUser.name.split(' ')[0] }}.
+          {{ greeting }}{{ userFirstName ? ', ' + userFirstName : '' }}.
         </h1>
         <p class="text-sm text-neoMuted font-medium">
           You have
           <span class="bg-neoYellow px-1.5 py-0.5 brut-border text-ink font-black text-xs">{{ displayTotal }}</span>
-          open tasks{{ isAdmin ? ' across the workspace' : ' assigned to you' }}.
+          open tasks{{ isAdmin ? ' across the workspace' : ' visible to you' }}.
         </p>
       </div>
       <button
+        v-if="currentUser.id"
         id="new-task-btn"
         @click="openCreateModal"
         class="flex items-center gap-2 px-5 py-2.5 bg-ink text-white brut-border brut-hover font-black text-xs uppercase tracking-wide cursor-pointer flex-shrink-0"
@@ -136,8 +157,12 @@ const getStatusLabel = (status) => {
       <StatsCard title="Overdue" :count="displayOverdue" colorClass="bg-neoPink" :period="statsPeriod" />
     </div>
 
+    <div v-if="recentTasks.length === 0" class="brut-border brut-shadow bg-neoCard p-5 text-center">
+      <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No tasks yet</p>
+    </div>
+
     <!-- Recent Tasks -->
-    <div class="brut-border brut-shadow bg-neoCard p-5">
+    <div v-else class="brut-border brut-shadow bg-neoCard p-5">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-black text-ink">Recent Tasks</h2>
         <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ recentTasks.length }} ITEMS</span>
@@ -166,7 +191,7 @@ const getStatusLabel = (status) => {
             <p class="text-[0.65rem] font-bold text-neoMuted uppercase tracking-wide mt-0.5">
               {{ getStatusLabel(task.status) }}
               <span v-if="task.dueDate" class="ml-1">· DUE {{ task.dueDate }}</span>
-              <span v-if="isAdmin && task.assignedTo" class="ml-1">· {{ task.assignedTo }}</span>
+              <span v-if="isAdmin && task.assigneeSummary" class="ml-1">· {{ task.assigneeSummary }}</span>
             </p>
           </div>
 
