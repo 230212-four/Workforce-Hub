@@ -3,12 +3,25 @@ import { ref, inject, computed } from 'vue'
 import KanbanTaskCard from '../../components/kanban/KanbanTaskCard.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useAuth } from '../../composables/useAuth'
+import { useToast } from '../../composables/useToast'
 
 const openCreateModal = inject('openCreateModal')
 const openEditModal = inject('openEditModal')
+const { addToast } = useToast()
 
-const { moveTask, teams, members, getFilteredColumns, getUserColumns } = useTaskStore()
-const { isAdmin, currentUser } = useAuth()
+const {
+  tasks,
+  moveTask,
+  deleteTask,
+  canEditTask,
+  canDeleteTask,
+  canMoveTask,
+  teams,
+  members,
+  getFilteredColumns,
+  getUserColumns
+} = useTaskStore()
+const { isAdmin, isAuthenticated } = useAuth()
 
 // ── Admin filters ──
 const adminTeamFilter = ref('all')
@@ -23,6 +36,8 @@ const userColumns = getUserColumns(showOnlyMine)
 const activeColumns = computed(() => {
   return isAdmin.value ? adminColumns.value : userColumns.value
 })
+
+const hasTasks = computed(() => activeColumns.value.some(column => column.tasks.length > 0))
 
 const dragOverColumn = ref(null)
 
@@ -46,17 +61,42 @@ const handleDragLeave = (e, columnId) => {
   }
 }
 
-const handleDrop = (e, columnId) => {
+const handleDrop = async (e, columnId) => {
   e.preventDefault()
   const taskId = e.dataTransfer.getData('text/plain')
-  if (taskId) {
-    moveTask(taskId, columnId)
+  const task = tasks.value.find(item => String(item.id) === String(taskId))
+  if (taskId && task && canMoveTask(task)) {
+    try {
+      await moveTask(task.id, columnId)
+      addToast({ message: 'Task status updated.', type: 'success' })
+    } catch (error) {
+      addToast({ message: error?.message || 'Unable to move the task.', type: 'error' })
+    }
   }
   dragOverColumn.value = null
 }
 
 const handleCardClick = (task) => {
-  openEditModal(task)
+  if (canEditTask(task)) {
+    openEditModal(task)
+  }
+}
+
+const handleTaskDelete = async (task) => {
+  if (!canDeleteTask(task)) {
+    return
+  }
+
+  if (!window.confirm(`Delete task "${task.title}"? This action cannot be undone.`)) {
+    return
+  }
+
+  try {
+    await deleteTask(task.id)
+    addToast({ message: 'Task deleted successfully.', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.message || 'Unable to delete the task.', type: 'error' })
+  }
 }
 
 const getColumnHeaderBg = (colId) => {
@@ -89,6 +129,7 @@ const getColumnBodyBg = (colId) => {
         <p class="text-xs font-bold text-neoMuted uppercase tracking-wide">Drag and drop tasks between columns to update status.</p>
       </div>
       <button
+        v-if="isAuthenticated"
         @click="openCreateModal"
         class="flex items-center gap-2 px-5 py-2.5 bg-ink text-white brut-border brut-hover font-black text-xs uppercase tracking-wide cursor-pointer flex-shrink-0"
         style="border-color: var(--border-color);"
@@ -111,7 +152,7 @@ const getColumnBodyBg = (colId) => {
       <label>Team</label>
       <select id="filter-team" v-model="adminTeamFilter" class="neo-select">
         <option value="all">All Teams</option>
-        <option v-for="t in teams" :key="t" :value="t">{{ t }}</option>
+        <option v-for="t in teams" :key="t.id" :value="t.name">{{ t.name }}</option>
       </select>
 
       <label>User</label>
@@ -152,6 +193,9 @@ const getColumnBodyBg = (colId) => {
          Desktop: standard 4-column grid
     -->
     <div class="flex flex-nowrap overflow-x-auto gap-4 snap-x snap-mandatory pb-4 md:grid md:grid-cols-2 md:flex-wrap md:overflow-x-visible lg:grid-cols-4 -mx-1 px-1">
+      <div v-if="!hasTasks" class="col-span-full brut-border brut-shadow bg-neoCard p-6 text-center">
+        <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No tasks available</p>
+      </div>
       <div
         v-for="column in activeColumns"
         :key="column.id"
@@ -188,7 +232,10 @@ const getColumnBodyBg = (colId) => {
             v-for="task in column.tasks"
             :key="task.id"
             :task="task"
+            :draggable="canMoveTask(task)"
+            :can-delete="canDeleteTask(task)"
             @click="handleCardClick"
+            @delete="handleTaskDelete"
           />
 
           <!-- Empty state -->

@@ -1,170 +1,395 @@
-import { ref, computed } from 'vue'
-import { useAuth } from './useAuth'
+import axios from 'axios'
+import { computed, ref } from 'vue'
+import { syncCurrentUser, useAuth } from './useAuth'
 
-// Centralized task state shared between Dashboard and Kanban
-const tasks = ref([
-  {
-    id: 'TSK-001',
-    title: 'Update user authentication system',
-    description: 'Implement OAuth2 flow with refresh tokens',
-    status: 'in-progress',
-    priority: 'high',
-    dueDate: '2026-06-05',
-    assignee: 'Admin',
-    assignedTo: 'John Doe',
-    team: 'Engineering',
-    completed: false,
-    createdAt: '2026-06-01'
-  },
-  {
-    id: 'TSK-002',
-    title: 'Design new dashboard layout',
-    description: 'Create wireframes and mockups for the new dashboard',
-    status: 'todo',
-    priority: 'medium',
-    dueDate: '2026-06-08',
-    assignee: 'Admin',
-    assignedTo: 'Jane Smith',
-    team: 'Design',
-    completed: false,
-    createdAt: '2026-06-01'
-  },
-  {
-    id: 'TSK-003',
-    title: 'Fix bug in payment processing',
-    description: 'Investigate and fix the double-charge issue',
-    status: 'todo',
-    priority: 'high',
-    dueDate: '2026-06-04',
-    assignee: 'Admin',
-    assignedTo: 'John Doe',
-    team: 'Engineering',
-    completed: false,
-    createdAt: '2026-06-02'
-  },
-  {
-    id: 'TSK-004',
-    title: 'Write API documentation',
-    description: 'Document all REST endpoints for v2 API',
-    status: 'review',
-    priority: 'low',
-    dueDate: '2026-06-10',
-    assignee: 'Admin',
-    assignedTo: 'Jane Smith',
-    team: 'Engineering',
-    completed: false,
-    createdAt: '2026-06-02'
-  },
-  {
-    id: 'TSK-005',
-    title: 'Optimize database queries',
-    description: 'Profile and optimize slow queries in reporting module',
-    status: 'in-progress',
-    priority: 'high',
-    dueDate: '2026-06-03',
-    assignee: 'Admin',
-    assignedTo: 'John Doe',
-    team: 'Engineering',
-    completed: false,
-    createdAt: '2026-06-03'
-  },
-  {
-    id: 'TSK-006',
-    title: 'Set up CI/CD pipeline',
-    description: 'Configure GitHub Actions for automated testing and deployment',
-    status: 'done',
-    priority: 'medium',
-    dueDate: '2026-06-01',
-    assignee: 'Admin',
-    assignedTo: 'John Doe',
-    team: 'Engineering',
-    completed: true,
-    createdAt: '2026-05-28'
-  },
-  {
-    id: 'TSK-007',
-    title: 'Create onboarding illustrations',
-    description: 'Design 5 illustration assets for the onboarding flow',
-    status: 'in-progress',
-    priority: 'medium',
-    dueDate: '2026-06-09',
-    assignee: 'User',
-    assignedTo: 'Jane Smith',
-    team: 'Design',
-    completed: false,
-    createdAt: '2026-06-03'
-  },
-  {
-    id: 'TSK-008',
-    title: 'Refactor notification service',
-    description: 'Extract notification logic into a dedicated microservice',
-    status: 'todo',
-    priority: 'low',
-    dueDate: '2026-06-12',
-    assignee: 'User',
-    assignedTo: 'Alex Rivera',
-    team: 'Engineering',
-    completed: false,
-    createdAt: '2026-06-04'
-  },
-  {
-    id: 'TSK-009',
-    title: 'Brand style guide update',
-    description: 'Update color palette and typography rules for 2026 rebrand',
-    status: 'review',
-    priority: 'medium',
-    dueDate: '2026-06-07',
-    assignee: 'User',
-    assignedTo: 'Jane Smith',
-    team: 'Design',
-    completed: false,
-    createdAt: '2026-06-02'
-  },
-  {
-    id: 'TSK-010',
-    title: 'Load testing for release',
-    description: 'Run k6 load tests against staging environment before v2 launch',
-    status: 'todo',
-    priority: 'high',
-    dueDate: '2026-06-06',
-    assignee: 'Admin',
-    assignedTo: 'Alex Rivera',
-    team: 'Engineering',
-    completed: false,
-    createdAt: '2026-06-04'
-  }
-])
-
-let nextId = 11
+const tasks = ref([])
+const workspaces = ref([])
+const users = ref([])
+const teams = ref([])
+const tasksLoaded = ref(false)
+const workspacesLoaded = ref(false)
+const usersLoaded = ref(false)
+const teamsLoaded = ref(false)
+const isLoadingTasks = ref(false)
+const isLoadingWorkspaces = ref(false)
+const isLoadingUsers = ref(false)
+const isLoadingTeams = ref(false)
 
 const statusLabels = {
-  'todo': 'TO DO',
+  todo: 'TO DO',
   'in-progress': 'IN PROGRESS',
-  'review': 'REVIEW',
-  'done': 'DONE'
+  review: 'REVIEW',
+  done: 'DONE'
 }
 
 const statusColors = {
-  'todo': 'bg-white',
+  todo: 'bg-white',
   'in-progress': 'bg-neoYellow',
-  'review': 'bg-neoPink',
-  'done': 'bg-neoMint'
+  review: 'bg-neoPink',
+  done: 'bg-neoMint'
 }
 
-// Available teams and members for filters
-const teams = ['Engineering', 'Design']
-const members = ['John Doe', 'Jane Smith', 'Alex Rivera']
+function normalizeUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username || '',
+    email: user.email || '',
+    role: user.role || 'user',
+    is_active: Boolean(user.is_active),
+    workspaceId: user.workspace_id || null,
+    workspaceName: user.workspace?.name || '',
+    teamId: user.team_id || null,
+    teamName: user.team?.name || '',
+    department: user.department || user.team?.name || ''
+  }
+}
+
+function normalizeTask(task) {
+  const assignedUsers = Array.isArray(task.assigned_users)
+    ? task.assigned_users.map(normalizeUser)
+    : []
+
+  const assigneeNames = assignedUsers.map(user => user.name).filter(Boolean)
+
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description || '',
+    status: task.status || 'todo',
+    priority: task.priority || 'medium',
+    dueDate: task.due_date || '',
+    completed: Boolean(task.completed),
+    completedAt: task.completed_at || null,
+    workspaceId: task.workspace_id || null,
+    teamId: task.team_id || null,
+    createdByUserId: task.created_by_user_id || null,
+    assignedToUserId: task.assigned_to_user_id || null,
+    assignedUsers,
+    assigneeNames,
+    assigneeSummary: assigneeNames.length ? assigneeNames.join(', ') : 'Add a Member',
+    assignedTo: assigneeNames[0] || 'Add a Member',
+    workspace: task.workspace?.name || '',
+    team: task.team?.name || '',
+    creator: task.creator?.name || '',
+    updatedAt: task.updated_at || null,
+    createdAt: task.created_at || null
+  }
+}
+
+function normalizeWorkspace(workspace) {
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    description: workspace.description || '',
+    status: workspace.status || 'active',
+    color: workspace.color || '',
+    teamsCount: workspace.teams_count ?? workspace.teamsCount ?? 0,
+    tasksCount: workspace.tasks_count ?? workspace.tasksCount ?? 0,
+    usersCount: workspace.users_count ?? workspace.usersCount ?? 0,
+    creator: workspace.creator?.name || '',
+    createdByUserId: workspace.created_by_user_id || null
+  }
+}
+
+function normalizeTeam(team) {
+  return {
+    id: team.id,
+    name: team.name,
+    status: team.status || 'active',
+    workspaceId: team.workspace_id || null,
+    workspaceName: team.workspace?.name || '',
+    createdAt: team.created_at || null,
+    updatedAt: team.updated_at || null
+  }
+}
+
+function resolveWorkspaceIdFromUser(user) {
+  return user?.workspaceId ?? user?.workspace_id ?? user?.workspace?.id ?? null
+}
+
+function canUserModifyTask(task, userId, isAdmin) {
+  if (!task || !userId) return false
+
+  const isAssigned = Array.isArray(task.assignedUsers)
+    && task.assignedUsers.some(user => user.id === userId)
+
+  return task.createdByUserId === userId && isAssigned
+}
+
+function canUserDeleteTask(task, userId) {
+  const isAssigned = Array.isArray(task?.assignedUsers)
+    && task.assignedUsers.some(user => user.id === userId)
+
+  return Boolean(task && userId && task.createdByUserId === userId && isAssigned)
+}
+
+function toTaskPayload(payload) {
+  return {
+    workspace_id: payload.workspace_id ?? payload.workspaceId ?? null,
+    team_id: payload.team_id ?? payload.teamId ?? null,
+    assignee_ids: payload.assignee_ids ?? payload.assignedUserIds ?? [],
+    title: payload.title,
+    description: payload.description || null,
+    status: payload.status || 'todo',
+    priority: payload.priority || 'medium',
+    due_date: payload.due_date ?? payload.dueDate ?? null,
+    completed: payload.completed ?? false
+  }
+}
+
+function toTaskUpdatePayload(payload) {
+  const request = {}
+
+  const workspaceId = payload.workspace_id ?? payload.workspaceId
+  const teamId = payload.team_id ?? payload.teamId
+  const assigneeIds = payload.assignee_ids ?? payload.assignedUserIds
+
+  if (workspaceId !== undefined) request.workspace_id = workspaceId
+  if (teamId !== undefined) request.team_id = teamId
+  if (assigneeIds !== undefined) request.assignee_ids = assigneeIds
+  if (payload.title !== undefined) request.title = payload.title
+  if (payload.description !== undefined) request.description = payload.description
+  if (payload.status !== undefined) request.status = payload.status
+  if (payload.priority !== undefined) request.priority = payload.priority
+  if (payload.due_date !== undefined) request.due_date = payload.due_date
+  if (payload.completed !== undefined) request.completed = payload.completed
+
+  return request
+}
+
+function toWorkspacePayload(payload) {
+  return {
+    name: payload.name,
+    description: payload.description || null,
+    status: payload.status || 'active',
+    color: payload.color || null
+  }
+}
+
+async function loadTasks() {
+  if (isLoadingTasks.value) return tasks.value
+
+  isLoadingTasks.value = true
+  try {
+    const { data } = await axios.get('/api/tasks')
+    tasks.value = (data.data || []).map(normalizeTask)
+    tasksLoaded.value = true
+    return tasks.value
+  } finally {
+    isLoadingTasks.value = false
+  }
+}
+
+async function loadWorkspaces() {
+  const { isAdmin } = useAuth()
+
+  if (!isAdmin.value) {
+    workspaces.value = []
+    workspacesLoaded.value = true
+    return workspaces.value
+  }
+
+  if (isLoadingWorkspaces.value) return workspaces.value
+
+  isLoadingWorkspaces.value = true
+  try {
+    const { data } = await axios.get('/api/workspaces')
+    workspaces.value = (data.data || []).map(normalizeWorkspace)
+    workspacesLoaded.value = true
+    return workspaces.value
+  } finally {
+    isLoadingWorkspaces.value = false
+  }
+}
+
+async function loadUsers() {
+  const { isAdmin } = useAuth()
+
+  if (!isAdmin.value) {
+    users.value = []
+    usersLoaded.value = true
+    return users.value
+  }
+
+  if (isLoadingUsers.value) return users.value
+
+  isLoadingUsers.value = true
+  try {
+    const { data } = await axios.get('/api/users')
+    users.value = (data.data || []).map(normalizeUser)
+    usersLoaded.value = true
+    return users.value
+  } finally {
+    isLoadingUsers.value = false
+  }
+}
+
+async function loadTeams() {
+  const { isAdmin } = useAuth()
+
+  if (!isAdmin.value) {
+    teams.value = []
+    teamsLoaded.value = true
+    return teams.value
+  }
+
+  if (isLoadingTeams.value) return teams.value
+
+  isLoadingTeams.value = true
+  try {
+    const { data } = await axios.get('/api/teams')
+    teams.value = (data.data || []).map(normalizeTeam)
+    teamsLoaded.value = true
+    return teams.value
+  } finally {
+    isLoadingTeams.value = false
+  }
+}
+
+async function loadInitialData() {
+  await loadTasks()
+  await Promise.all([loadWorkspaces(), loadUsers(), loadTeams()])
+}
+
+function requireAdmin() {
+  const { isAdmin } = useAuth()
+  if (!isAdmin.value) {
+    throw new Error('Admin access required.')
+  }
+}
+
+async function createTask(payload) {
+  const { data } = await axios.post('/api/tasks', toTaskPayload(payload))
+  const task = normalizeTask(data.data)
+  tasks.value = [task, ...tasks.value]
+  return task
+}
+
+async function updateTask(taskId, payload) {
+  const { currentUser, isAdmin } = useAuth()
+  const localTask = tasks.value.find(item => item.id === taskId)
+
+  if (localTask && !canUserModifyTask(localTask, currentUser.value.id, isAdmin.value)) {
+    throw new Error('You are not allowed to update this task.')
+  }
+
+  const { data } = await axios.put(`/api/tasks/${taskId}`, toTaskUpdatePayload(payload))
+  const task = normalizeTask(data.data)
+  tasks.value = tasks.value.map(item => (item.id === task.id ? task : item))
+  return task
+}
+
+async function deleteTask(taskId) {
+  const { currentUser } = useAuth()
+  const localTask = tasks.value.find(item => item.id === taskId)
+
+  if (localTask && !canUserDeleteTask(localTask, currentUser.value.id)) {
+    throw new Error('You are not allowed to delete this task.')
+  }
+
+  await axios.delete(`/api/tasks/${taskId}`)
+  tasks.value = tasks.value.filter(task => task.id !== taskId)
+}
+
+async function toggleComplete(taskId) {
+  const { currentUser, isAdmin } = useAuth()
+  const task = tasks.value.find(item => item.id === taskId)
+  if (!task) return null
+
+  if (!canUserModifyTask(task, currentUser.value.id, isAdmin.value)) {
+    throw new Error('You are not allowed to update this task.')
+  }
+
+  return updateTask(taskId, {
+    completed: !task.completed,
+    status: !task.completed ? 'done' : 'todo'
+  })
+}
+
+async function moveTask(taskId, newStatus) {
+  const { currentUser, isAdmin } = useAuth()
+  const localTask = tasks.value.find(item => item.id === taskId)
+
+  if (localTask && !canUserModifyTask(localTask, currentUser.value.id, isAdmin.value)) {
+    throw new Error('You are not allowed to move this task.')
+  }
+
+  const updatedTask = await updateTask(taskId, {
+    status: newStatus,
+    completed: newStatus === 'done'
+  })
+
+  await loadTasks()
+  return updatedTask
+}
+
+async function createWorkspace(payload) {
+  requireAdmin()
+  const { data } = await axios.post('/api/workspaces', toWorkspacePayload(payload))
+  const workspace = normalizeWorkspace(data.data)
+  workspaces.value = [workspace, ...workspaces.value]
+  try {
+    await syncCurrentUser()
+  } catch {
+    // The workspace already exists; the next auth refresh will pick up the new membership.
+  }
+  return workspace
+}
+
+async function createTeam(payload) {
+  requireAdmin()
+  const { data } = await axios.post('/api/teams', {
+    workspace_id: payload.workspace_id ?? payload.workspaceId ?? null,
+    name: payload.name,
+    status: payload.status || 'active'
+  })
+  const team = normalizeTeam(data.data)
+  teams.value = [team, ...teams.value]
+  return team
+}
+
+async function updateTeam(teamId, payload) {
+  requireAdmin()
+  const { data } = await axios.put(`/api/teams/${teamId}`, {
+    workspace_id: payload.workspace_id ?? payload.workspaceId ?? null,
+    name: payload.name,
+    status: payload.status || 'active'
+  })
+  const team = normalizeTeam(data.data)
+  teams.value = teams.value.map(item => (item.id === team.id ? team : item))
+  return team
+}
+
+async function deleteTeam(teamId) {
+  requireAdmin()
+  await axios.delete(`/api/teams/${teamId}`)
+  teams.value = teams.value.filter(team => team.id !== teamId)
+}
+
+async function updateWorkspace(workspaceId, payload) {
+  requireAdmin()
+  const { data } = await axios.put(`/api/workspaces/${workspaceId}`, toWorkspacePayload(payload))
+  const workspace = normalizeWorkspace(data.data)
+  workspaces.value = workspaces.value.map(item => (item.id === workspace.id ? workspace : item))
+  return workspace
+}
+
+async function deleteWorkspace(workspaceId) {
+  requireAdmin()
+  await axios.delete(`/api/workspaces/${workspaceId}`)
+  workspaces.value = workspaces.value.filter(workspace => workspace.id !== workspaceId)
+}
 
 export function useTaskStore() {
-  const { currentUser } = useAuth()
+  const { currentUser, isAdmin } = useAuth()
 
-  // ── Global stats (admin / workspace-wide) ──
-  const totalTasks = computed(() => tasks.value.filter(t => !t.completed).length)
-  const completedTasks = computed(() => tasks.value.filter(t => t.completed).length)
-  const inProgressTasks = computed(() => tasks.value.filter(t => t.status === 'in-progress' && !t.completed).length)
+  const totalTasks = computed(() => tasks.value.filter(task => !task.completed).length)
+  const completedTasks = computed(() => tasks.value.filter(task => task.completed).length)
+  const inProgressTasks = computed(() => tasks.value.filter(task => task.status === 'in-progress' && !task.completed).length)
   const overdueTasks = computed(() => {
     const today = new Date().toISOString().split('T')[0]
-    return tasks.value.filter(t => !t.completed && t.dueDate < today).length
+    return tasks.value.filter(task => !task.completed && task.dueDate && task.dueDate < today).length
   })
 
   const completionRate = computed(() => {
@@ -172,50 +397,79 @@ export function useTaskStore() {
     return Math.round((completedTasks.value / tasks.value.length) * 100)
   })
 
-  // ── User-scoped stats (regular user) ──
-  const userTasks = computed(() => tasks.value.filter(t => t.assignedTo === currentUser.value.name))
+  const userTasks = computed(() => {
+    return tasks.value
+  })
 
-  const userTotalTasks = computed(() => userTasks.value.filter(t => !t.completed).length)
-  const userCompletedTasks = computed(() => userTasks.value.filter(t => t.completed).length)
-  const userInProgressTasks = computed(() => userTasks.value.filter(t => t.status === 'in-progress' && !t.completed).length)
+  const userTotalTasks = computed(() => userTasks.value.filter(task => !task.completed).length)
+  const userCompletedTasks = computed(() => userTasks.value.filter(task => task.completed).length)
+  const userInProgressTasks = computed(() => userTasks.value.filter(task => task.status === 'in-progress' && !task.completed).length)
   const userOverdueTasks = computed(() => {
     const today = new Date().toISOString().split('T')[0]
-    return userTasks.value.filter(t => !t.completed && t.dueDate < today).length
+    return userTasks.value.filter(task => !task.completed && task.dueDate && task.dueDate < today).length
   })
   const userCompletionRate = computed(() => {
     if (userTasks.value.length === 0) return 0
     return Math.round((userCompletedTasks.value / userTasks.value.length) * 100)
   })
 
-  const openTasks = computed(() => tasks.value.filter(t => !t.completed))
-
-  // ── Kanban columns (all tasks, unfiltered — default) ──
+  const openTasks = computed(() => tasks.value.filter(task => !task.completed))
   const columns = computed(() => buildColumns(tasks.value))
 
-  // ── Filtered columns for admin god-view ──
+  function isTaskAssignedToCurrentUser(task) {
+    return Array.isArray(task?.assignedUsers)
+      && task.assignedUsers.some(user => user.id === currentUser.value.id)
+  }
+
+  function canEditTask(task) {
+    if (!task || !currentUser.value.id) return false
+    return task.createdByUserId === currentUser.value.id && isTaskAssignedToCurrentUser(task)
+  }
+
+  function canMoveTask(task) {
+    return canEditTask(task)
+  }
+
+  function canDeleteTask(task) {
+    if (!task || !currentUser.value.id) return false
+
+    return task.createdByUserId === currentUser.value.id
+  }
+
+  function getCurrentWorkspaceId() {
+    return resolveWorkspaceIdFromUser(currentUser.value)
+  }
+
+  function getWorkspaceUsers(workspaceId) {
+    if (!workspaceId) return []
+
+    return users.value.filter(user => user.is_active && resolveWorkspaceIdFromUser(user) === workspaceId)
+  }
+
   function getFilteredColumns(teamFilter, userFilter) {
     return computed(() => {
       let pool = tasks.value
+
       if (teamFilter.value && teamFilter.value !== 'all') {
-        pool = pool.filter(t => t.team === teamFilter.value)
+        pool = pool.filter(task => task.team === teamFilter.value)
       }
+
       if (userFilter.value && userFilter.value !== 'all') {
-        pool = pool.filter(t => t.assignedTo === userFilter.value)
+        pool = pool.filter(task => task.assigneeNames.includes(userFilter.value))
       }
+
       return buildColumns(pool)
     })
   }
 
-  // ── Filtered columns for user team/my-tasks view ──
   function getUserColumns(showOnlyMine) {
     return computed(() => {
-      let pool = tasks.value
-      // User always sees their team's tasks by default
-      const userTeams = [...new Set(tasks.value.filter(t => t.assignedTo === currentUser.value.name).map(t => t.team))]
-      pool = pool.filter(t => userTeams.includes(t.team))
+      let pool = userTasks.value
+
       if (showOnlyMine.value) {
-        pool = pool.filter(t => t.assignedTo === currentUser.value.name)
+        pool = pool.filter(task => canEditTask(task))
       }
+
       return buildColumns(pool)
     })
   }
@@ -226,85 +480,53 @@ export function useTaskStore() {
         id: 'todo',
         title: 'TO DO',
         color: 'bg-white dark-card-col',
-        tasks: taskList.filter(t => t.status === 'todo')
+        tasks: taskList.filter(task => task.status === 'todo')
       },
       {
         id: 'in-progress',
         title: 'IN PROGRESS',
         color: 'bg-neoYellow',
-        tasks: taskList.filter(t => t.status === 'in-progress')
+        tasks: taskList.filter(task => task.status === 'in-progress')
       },
       {
         id: 'review',
         title: 'REVIEW',
         color: 'bg-neoPink',
-        tasks: taskList.filter(t => t.status === 'review')
+        tasks: taskList.filter(task => task.status === 'review')
       },
       {
         id: 'done',
         title: 'DONE',
         color: 'bg-neoMint',
-        tasks: taskList.filter(t => t.status === 'done')
+        tasks: taskList.filter(task => task.status === 'done')
       }
     ]
   }
 
-  function addTask(taskData) {
-    const id = `TSK-${String(nextId++).padStart(3, '0')}`
-    tasks.value.push({
-      id,
-      title: taskData.title,
-      description: taskData.description || '',
-      status: taskData.status || 'todo',
-      priority: taskData.priority || 'medium',
-      dueDate: taskData.dueDate || '',
-      assignee: taskData.assignee || 'Admin',
-      assignedTo: taskData.assignedTo || currentUser.value.name,
-      team: taskData.team || 'Engineering',
-      completed: false,
-      createdAt: new Date().toISOString().split('T')[0]
-    })
-    return id
-  }
+  const members = computed(() => {
+    const labels = users.value
+      .map(user => user.name)
+      .filter(Boolean)
 
-  function updateTask(taskId, updates) {
-    const index = tasks.value.findIndex(t => t.id === taskId)
-    if (index !== -1) {
-      tasks.value[index] = { ...tasks.value[index], ...updates }
-    }
-  }
-
-  function deleteTask(taskId) {
-    const index = tasks.value.findIndex(t => t.id === taskId)
-    if (index !== -1) {
-      tasks.value.splice(index, 1)
-    }
-  }
-
-  function toggleComplete(taskId) {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (task) {
-      task.completed = !task.completed
-      if (task.completed) {
-        task.status = 'done'
-      }
-    }
-  }
-
-  function moveTask(taskId, newStatus) {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (task) {
-      task.status = newStatus
-      if (newStatus === 'done') {
-        task.completed = true
-      } else {
-        task.completed = false
-      }
-    }
-  }
+    return [...new Set(labels)]
+  })
 
   return {
     tasks,
+    workspaces,
+    users,
+    tasksLoaded,
+    workspacesLoaded,
+    usersLoaded,
+    teamsLoaded,
+    isLoadingTasks,
+    isLoadingWorkspaces,
+    isLoadingUsers,
+    isLoadingTeams,
+    statusLabels,
+    statusColors,
+    teams,
+    members,
     totalTasks,
     completedTasks,
     inProgressTasks,
@@ -312,25 +534,34 @@ export function useTaskStore() {
     completionRate,
     openTasks,
     columns,
-    statusLabels,
-    statusColors,
-    teams,
-    members,
-    // User-scoped stats
     userTasks,
     userTotalTasks,
     userCompletedTasks,
     userInProgressTasks,
     userOverdueTasks,
     userCompletionRate,
-    // Filtered column helpers
     getFilteredColumns,
     getUserColumns,
-    // Mutations
-    addTask,
+    canEditTask,
+    canMoveTask,
+    canDeleteTask,
+    getCurrentWorkspaceId,
+    getWorkspaceUsers,
+    loadTasks,
+    loadWorkspaces,
+    loadUsers,
+    loadTeams,
+    loadInitialData,
+    createTask,
     updateTask,
     deleteTask,
     toggleComplete,
-    moveTask
+    moveTask,
+    createWorkspace,
+    updateWorkspace,
+    deleteWorkspace,
+    createTeam,
+    updateTeam,
+    deleteTeam
   }
 }

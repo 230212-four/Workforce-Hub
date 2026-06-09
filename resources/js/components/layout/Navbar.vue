@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotifications } from '../../composables/useNotifications'
 import { useAuth } from '../../composables/useAuth'
@@ -8,13 +8,18 @@ import NotificationDropdown from './NotificationDropdown.vue'
 const emit = defineEmits(['toggle-sidebar'])
 
 const router = useRouter()
-const { hasUnread } = useNotifications()
-const { currentUser, isAdmin, toggleRole } = useAuth()
+const { hasUnread, loadNotifications } = useNotifications()
+const { isAdmin, avatarInitial, displayName, roleLabel, logout, currentUser } = useAuth()
 
 const showNotifications = ref(false)
+let refreshTimer = null
 
-const toggleNotifications = () => {
+const toggleNotifications = async () => {
   showNotifications.value = !showNotifications.value
+
+  if (showNotifications.value) {
+    await loadNotifications()
+  }
 }
 
 const closeNotifications = () => {
@@ -25,9 +30,34 @@ const goToSettings = () => {
   router.push('/settings')
 }
 
-const logout = () => {
+const handleLogout = async () => {
+  await logout()
   router.push('/login')
 }
+
+watch(
+  () => currentUser.value.id,
+  async (id) => {
+    if (id) {
+      await loadNotifications()
+    }
+  },
+  { immediate: true }
+)
+
+onMounted(() => {
+  refreshTimer = window.setInterval(() => {
+    if (currentUser.value.id) {
+      loadNotifications().catch(() => {})
+    }
+  }, 45000)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer)
+  }
+})
 </script>
 
 <template>
@@ -50,7 +80,7 @@ const logout = () => {
       <div class="hidden md:flex items-center gap-2">
         <span class="text-xs font-black uppercase tracking-wider text-neoMuted">Workspace</span>
         <span class="text-xs text-neoMuted">/</span>
-        <span class="text-xs font-black uppercase tracking-wider text-ink">iReply Services</span>
+        <span class="text-xs font-black uppercase tracking-wider text-ink">Current Workspace</span>
       </div>
 
       <!-- Mobile logo fallback (shown when hamburger present) -->
@@ -59,22 +89,12 @@ const logout = () => {
 
     <!-- Right: Action Buttons -->
     <div class="flex items-center gap-2">
-      <!-- Role Toggle Pill -->
-      <button
-        id="role-toggle"
-        @click="toggleRole"
-        :class="[
-          'role-toggle-pill',
-          isAdmin ? 'bg-neoIndigo text-white' : 'bg-neoMint text-ink'
-        ]"
-        :title="'Switch to ' + (isAdmin ? 'User' : 'Admin') + ' view'"
+      <div
+        class="hidden sm:flex h-10 items-center gap-2 px-3 brut-border bg-neoCard text-xs font-black uppercase tracking-wide text-ink"
       >
-        <span class="role-indicator" :style="{ background: isAdmin ? '#fff' : 'var(--ink)' }"></span>
-        <span class="hidden sm:inline">{{ isAdmin ? 'ADMIN' : 'USER' }}</span>
-        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
-          <path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-        </svg>
-      </button>
+        <span class="w-2.5 h-2.5 rounded-full" :class="isAdmin ? 'bg-neoPink' : 'bg-neoMint'"></span>
+        <span>{{ roleLabel }}</span>
+      </div>
 
       <!-- Notification Bell -->
       <div class="relative">
@@ -113,14 +133,15 @@ const logout = () => {
           'w-10 h-10 brut-border flex items-center justify-center font-black text-ink text-sm cursor-default',
           isAdmin ? 'bg-neoPink' : 'bg-neoMint'
         ]"
+        :title="displayName || roleLabel"
       >
-        {{ currentUser.initials }}
+        {{ avatarInitial }}
       </div>
 
       <!-- Logout — hidden on very small screens to avoid overflow -->
       <button
         id="logout-button"
-        @click="logout"
+        @click="handleLogout"
         class="hidden sm:flex h-10 px-4 brut-border bg-neoCard items-center gap-2 font-black text-xs uppercase tracking-wide text-ink brut-hover cursor-pointer"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">

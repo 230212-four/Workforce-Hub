@@ -7,9 +7,11 @@ import EditTaskModal from '../modals/EditTaskModal.vue'
 import ToastContainer from '../ui/ToastContainer.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useToast } from '../../composables/useToast'
+import { useAuth } from '../../composables/useAuth'
 
-const { addTask, updateTask } = useTaskStore()
+const { createTask, updateTask, loadInitialData } = useTaskStore()
 const { addToast } = useToast()
+const { isAuthenticated } = useAuth()
 
 // ── Modal state ──
 const showCreateModal = ref(false)
@@ -28,18 +30,26 @@ const closeEditModal = () => {
   editingTask.value = null
 }
 
-const handleCreateTask = (taskData) => {
-  addTask(taskData)
-  closeCreateModal()
-  addToast({ message: 'Task created successfully!', type: 'success' })
+const handleCreateTask = async (taskData) => {
+  try {
+    await createTask(taskData)
+    closeCreateModal()
+    addToast({ message: 'Task created successfully!', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || error?.message || 'Unable to create the task.', type: 'error' })
+  }
 }
 
-const handleSaveTask = (taskData) => {
-  if (taskData.id) {
-    updateTask(taskData.id, taskData)
+const handleSaveTask = async (taskData) => {
+  if (!taskData.id) return
+
+  try {
+    await updateTask(taskData.id, taskData)
+    closeEditModal()
+    addToast({ message: 'Task updated successfully!', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || error?.message || 'Unable to update the task.', type: 'error' })
   }
-  closeEditModal()
-  addToast({ message: 'Task updated successfully!', type: 'success' })
 }
 
 // ── Mobile sidebar state ──
@@ -48,14 +58,17 @@ const sidebarOpen = ref(false)
 // ── Global hotkey: 'N' opens create task modal ──
 const handleKeydown = (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
-  if (showCreateModal.value || showEditModal.value) return
+  if (showCreateModal.value || showEditModal.value || !isAuthenticated.value) return
   if (e.key === 'n' || e.key === 'N') {
     e.preventDefault()
     openCreateModal()
   }
 }
 
-onMounted(() => { document.addEventListener('keydown', handleKeydown) })
+onMounted(() => {
+  loadInitialData()
+  document.addEventListener('keydown', handleKeydown)
+})
 onUnmounted(() => { document.removeEventListener('keydown', handleKeydown) })
 
 // Provide modal + toast controls to child pages

@@ -1,5 +1,4 @@
 <script setup>
-import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 
@@ -80,6 +79,7 @@ const closeSidebar = () => emit('close')
         </svg>
         MANAGE WORKSPACE
       </router-link>
+
     </nav>
 
     <!-- TIP Box -->
@@ -124,7 +124,7 @@ const closeSidebar = () => emit('close')
             @click="closeSidebar"
             class="w-8 h-8 brut-border bg-neoCard flex items-center justify-center font-black text-ink text-sm brut-hover cursor-pointer flex-shrink-0"
             aria-label="Close menu"
-          >✕</button>
+          >x</button>
         </div>
 
         <!-- Menu Label -->
@@ -172,6 +172,7 @@ const closeSidebar = () => emit('close')
             </svg>
             MANAGE WORKSPACE
           </router-link>
+
         </nav>
 
         <!-- TIP Box -->

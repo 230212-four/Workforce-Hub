@@ -1,220 +1,397 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import NeoInput from '../../components/ui/NeoInput.vue'
+import NeoButton from '../../components/ui/NeoButton.vue'
+import { useAuth } from '../../composables/useAuth'
+import { useTaskStore } from '../../composables/useTaskStore'
+import { useToast } from '../../composables/useToast'
 
-// ── Active Tab ──
-const activeTab = ref('workspaces') // 'workspaces' | 'directory'
+const route = useRoute()
+const router = useRouter()
 
-// ── Workspaces Mock Data ──
-const workspaces = ref([
-  { id: 1, name: 'iReply Services', members: 5, status: 'active', color: 'bg-neoIndigo' },
-  { id: 2, name: 'SkyNet Ops', members: 3, status: 'active', color: 'bg-neoYellow' },
-  { id: 3, name: 'DevOps Pipeline', members: 2, status: 'archived', color: 'bg-neoPink' }
-])
+const {
+  workspaces,
+  users,
+  loadWorkspaces,
+  loadUsers,
+  createWorkspace,
+  updateWorkspace,
+  deleteWorkspace
+} = useTaskStore()
 
-let nextWsId = 4
+const { createUser, updateUser, deleteUser } = useAuth()
+const { addToast } = useToast()
 
-// ── User Directory Mock Data ──
-const directoryMembers = ref([
-  { id: 1, name: 'John Doe', email: 'john@workforce.io', role: 'admin', team: 'Engineering', workspace: 'iReply Services' },
-  { id: 2, name: 'Jane Smith', email: 'jane@workforce.io', role: 'user', team: 'Design', workspace: 'iReply Services' },
-  { id: 3, name: 'Alex Rivera', email: 'alex@workforce.io', role: 'user', team: 'Engineering', workspace: 'SkyNet Ops' },
-  { id: 4, name: 'Sam Wilson', email: 'sam@workforce.io', role: 'user', team: 'Design', workspace: 'SkyNet Ops' },
-  { id: 5, name: 'Mia Chen', email: 'mia@workforce.io', role: 'user', team: 'Engineering', workspace: 'iReply Services' }
-])
+const activeTab = ref('workspaces')
+const showWorkspaceModal = ref(false)
+const showUserModal = ref(false)
+const workspaceSaving = ref(false)
+const userSaving = ref(false)
+const editingWorkspaceId = ref(null)
+const editingUserId = ref(null)
 
-let nextMemberId = 6
+const workspaceForm = reactive({
+  name: '',
+  description: '',
+  status: 'active'
+})
 
-const availableTeams = ['Engineering', 'Design', 'Marketing', 'Operations']
+const userForm = reactive({
+  name: '',
+  username: '',
+  email: '',
+  password: '',
+  password_confirmation: '',
+  role: 'user',
+  workspace_id: '',
+  is_active: true
+})
 
-// ── Workspace Modal ──
-const showWsModal = ref(false)
-const newWsName = ref('')
+const workspaceErrors = reactive({
+  name: '',
+  description: '',
+  status: '',
+  form: ''
+})
 
-const openWsModal = () => {
-  newWsName.value = ''
-  showWsModal.value = true
-}
+const userErrors = reactive({
+  name: '',
+  username: '',
+  email: '',
+  password: '',
+  password_confirmation: '',
+  role: '',
+  workspace_id: '',
+  form: ''
+})
 
-const closeWsModal = () => {
-  showWsModal.value = false
-}
+const isEditingWorkspace = computed(() => editingWorkspaceId.value !== null)
+const isEditingUser = computed(() => editingUserId.value !== null)
+const workspaceCount = computed(() => workspaces.value.length)
+const memberCount = computed(() => users.value.length)
+const canCreateUser = computed(() => workspaces.value.length > 0)
 
-const createWorkspace = () => {
-  if (!newWsName.value.trim()) return
-  const colors = ['bg-neoIndigo', 'bg-neoYellow', 'bg-neoPink', 'bg-neoMint']
-  workspaces.value.push({
-    id: nextWsId++,
-    name: newWsName.value.trim(),
-    members: 0,
-    status: 'active',
-    color: colors[Math.floor(Math.random() * colors.length)]
+function resetErrors(target) {
+  Object.keys(target).forEach((key) => {
+    target[key] = ''
   })
-  closeWsModal()
 }
 
-const getWsInitials = (name) => {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+function workspaceInitials(name) {
+  return (name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 }
 
-// ── Invite Member Modal ──
-const showInviteModal = ref(false)
-const inviteForm = ref({ name: '', email: '', role: 'user', team: 'Engineering' })
-
-const openInviteModal = () => {
-  inviteForm.value = { name: '', email: '', role: 'user', team: 'Engineering' }
-  showInviteModal.value = true
+function resetWorkspaceForm() {
+  workspaceForm.name = ''
+  workspaceForm.description = ''
+  workspaceForm.status = 'active'
+  editingWorkspaceId.value = null
+  resetErrors(workspaceErrors)
 }
 
-const closeInviteModal = () => {
-  showInviteModal.value = false
+function resetUserForm() {
+  userForm.name = ''
+  userForm.username = ''
+  userForm.email = ''
+  userForm.password = ''
+  userForm.password_confirmation = ''
+  userForm.role = 'user'
+  userForm.workspace_id = ''
+  userForm.is_active = true
+  editingUserId.value = null
+  resetErrors(userErrors)
 }
 
-const createMember = () => {
-  if (!inviteForm.value.name.trim() || !inviteForm.value.email.trim()) return
-  directoryMembers.value.push({
-    id: nextMemberId++,
-    name: inviteForm.value.name.trim(),
-    email: inviteForm.value.email.trim(),
-    role: inviteForm.value.role,
-    team: inviteForm.value.team,
-    workspace: 'Unassigned'
+function syncTabFromRoute() {
+  activeTab.value = route.query.tab === 'directory' ? 'directory' : 'workspaces'
+}
+
+function setActiveTab(tab) {
+  activeTab.value = tab
+  router.replace({
+    path: route.path,
+    query: tab === 'directory' ? { tab: 'directory' } : {}
   })
-  closeInviteModal()
 }
 
-// ── Add Member to Workspace ──
-const showAssignWsModal = ref(false)
-const assigningMember = ref(null)
-const selectedWorkspace = ref('')
+function openWorkspaceModal(workspace = null) {
+  resetWorkspaceForm()
 
-const openAssignWsModal = (member) => {
-  assigningMember.value = member
-  selectedWorkspace.value = member.workspace
-  showAssignWsModal.value = true
-}
-
-const closeAssignWsModal = () => {
-  showAssignWsModal.value = false
-  assigningMember.value = null
-}
-
-const assignToWorkspace = () => {
-  if (assigningMember.value && selectedWorkspace.value) {
-    assigningMember.value.workspace = selectedWorkspace.value
+  if (workspace) {
+    editingWorkspaceId.value = workspace.id
+    workspaceForm.name = workspace.name || ''
+    workspaceForm.description = workspace.description || ''
+    workspaceForm.status = workspace.status || 'active'
   }
-  closeAssignWsModal()
+
+  showWorkspaceModal.value = true
 }
 
-// ── Change Team ──
-const showChangeTeamModal = ref(false)
-const changingMember = ref(null)
-const selectedTeam = ref('')
-
-const openChangeTeamModal = (member) => {
-  changingMember.value = member
-  selectedTeam.value = member.team
-  showChangeTeamModal.value = true
-}
-
-const closeChangeTeamModal = () => {
-  showChangeTeamModal.value = false
-  changingMember.value = null
-}
-
-const changeTeam = () => {
-  if (changingMember.value && selectedTeam.value) {
-    changingMember.value.team = selectedTeam.value
+function openUserModal(user = null) {
+  if (!canCreateUser.value) {
+    addToast({ message: 'Create a workspace first before creating an account.', type: 'error' })
+    return
   }
-  closeChangeTeamModal()
+
+  resetUserForm()
+
+  if (user) {
+    editingUserId.value = user.id
+    userForm.name = user.name || ''
+    userForm.username = user.username || ''
+    userForm.email = user.email || ''
+    userForm.role = user.role || 'user'
+    userForm.workspace_id = user.workspaceId || ''
+    userForm.is_active = Boolean(user.is_active)
+  }
+
+  showUserModal.value = true
 }
+
+function closeWorkspaceModal() {
+  showWorkspaceModal.value = false
+  resetWorkspaceForm()
+}
+
+function closeUserModal() {
+  showUserModal.value = false
+  resetUserForm()
+}
+
+async function refreshAll() {
+  await Promise.all([loadWorkspaces(), loadUsers()])
+}
+
+function validateWorkspace() {
+  resetErrors(workspaceErrors)
+
+  if (!workspaceForm.name.trim()) {
+    workspaceErrors.name = 'Workspace name is required.'
+  }
+
+  return !Object.values(workspaceErrors).some(Boolean)
+}
+
+function validateUser() {
+  resetErrors(userErrors)
+
+  if (!userForm.name.trim()) userErrors.name = 'Full name is required.'
+  if (!userForm.username.trim()) userErrors.username = 'Username is required.'
+  if (!userForm.email.trim()) userErrors.email = 'Email is required.'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userForm.email.trim())) {
+    userErrors.email = 'Enter a valid email address.'
+  }
+  if (!userForm.workspace_id) userErrors.workspace_id = 'Choose a workspace.'
+  if (!isEditingUser.value && !userForm.password) userErrors.password = 'Password is required.'
+  if (userForm.password && userForm.password.length < 8) {
+    userErrors.password = 'Password must be at least 8 characters.'
+  }
+  if (userForm.password && userForm.password !== userForm.password_confirmation) {
+    userErrors.password_confirmation = 'Passwords do not match.'
+  }
+  if (!userForm.role) userErrors.role = 'Choose a role.'
+
+  return !Object.values(userErrors).some(Boolean)
+}
+
+async function handleWorkspaceSubmit() {
+  if (!validateWorkspace()) return
+
+  workspaceSaving.value = true
+  const payload = {
+    name: workspaceForm.name.trim(),
+    description: workspaceForm.description.trim() || null,
+    status: workspaceForm.status
+  }
+
+  try {
+    if (isEditingWorkspace.value) {
+      await updateWorkspace(editingWorkspaceId.value, payload)
+      addToast({ message: 'Workspace updated successfully.', type: 'success' })
+    } else {
+      await createWorkspace(payload)
+      addToast({ message: 'Workspace created successfully.', type: 'success' })
+    }
+
+    await refreshAll()
+    closeWorkspaceModal()
+  } catch (error) {
+    workspaceErrors.form = error?.response?.data?.message || 'We could not save that workspace.'
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
+async function handleUserSubmit() {
+  if (!validateUser()) return
+
+  userSaving.value = true
+
+  const payload = {
+    name: userForm.name.trim(),
+    username: userForm.username.trim(),
+    email: userForm.email.trim(),
+    role: userForm.role,
+    workspace_id: userForm.workspace_id,
+    is_active: userForm.is_active
+  }
+
+  if (userForm.password) {
+    payload.password = userForm.password
+    payload.password_confirmation = userForm.password_confirmation
+  }
+
+  try {
+    if (isEditingUser.value) {
+      await updateUser(editingUserId.value, payload)
+      addToast({ message: 'User updated successfully.', type: 'success' })
+    } else {
+      await createUser(payload)
+      addToast({ message: 'User created successfully.', type: 'success' })
+    }
+
+    await refreshAll()
+    closeUserModal()
+  } catch (error) {
+    const responseErrors = error?.response?.data?.errors || {}
+    userErrors.form = error?.response?.data?.message || 'We could not save that account.'
+    userErrors.name = responseErrors.name?.[0] || userErrors.name
+    userErrors.username = responseErrors.username?.[0] || userErrors.username
+    userErrors.email = responseErrors.email?.[0] || userErrors.email
+    userErrors.password = responseErrors.password?.[0] || userErrors.password
+    userErrors.password_confirmation = responseErrors.password_confirmation?.[0] || userErrors.password_confirmation
+    userErrors.workspace_id = responseErrors.workspace_id?.[0] || userErrors.workspace_id
+    userErrors.role = responseErrors.role?.[0] || userErrors.role
+  } finally {
+    userSaving.value = false
+  }
+}
+
+async function handleWorkspaceDelete(workspace) {
+  if (!window.confirm(`Delete workspace "${workspace.name}"? This cannot be undone.`)) return
+
+  try {
+    await deleteWorkspace(workspace.id)
+    addToast({ message: 'Workspace deleted.', type: 'success' })
+    await refreshAll()
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || 'Unable to delete the workspace.', type: 'error' })
+  }
+}
+
+async function handleUserDelete(user) {
+  if (!window.confirm(`Delete ${user.name}? This cannot be undone.`)) return
+
+  try {
+    await deleteUser(user.id)
+    addToast({ message: 'User deleted.', type: 'success' })
+    await refreshAll()
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || 'Unable to delete the user.', type: 'error' })
+  }
+}
+
+watch(
+  () => route.query.tab,
+  () => {
+    syncTabFromRoute()
+  },
+  { immediate: true }
+)
+
+onMounted(refreshAll)
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Header -->
     <div class="flex items-start justify-between">
       <div>
         <h1 class="text-3xl font-black text-ink mb-1">Manage Workspace</h1>
-        <p class="text-xs font-bold text-neoMuted uppercase tracking-wide">Administer workspaces, teams, and member access.</p>
+        <p class="text-xs font-bold text-neoMuted uppercase tracking-wide">
+          Administer workspaces and member access.
+        </p>
       </div>
     </div>
 
-    <!-- Tab Bar -->
     <div class="neo-tab-bar">
       <button
-        id="tab-workspaces"
         :class="['neo-tab', activeTab === 'workspaces' ? 'active' : '']"
-        @click="activeTab = 'workspaces'"
+        @click="setActiveTab('workspaces')"
       >
         Workspaces
       </button>
       <button
-        id="tab-directory"
         :class="['neo-tab', activeTab === 'directory' ? 'active' : '']"
-        @click="activeTab = 'directory'"
+        @click="setActiveTab('directory')"
       >
         User Directory
       </button>
     </div>
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- TAB A: WORKSPACES LIST                      -->
-    <!-- ═══════════════════════════════════════════ -->
     <div v-if="activeTab === 'workspaces'" class="space-y-4">
-      <!-- Actions -->
       <div class="flex items-center justify-between">
-        <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ workspaces.length }} WORKSPACES</span>
-        <button
-          id="add-workspace-btn"
-          @click="openWsModal"
-          class="flex items-center gap-2 px-5 py-2.5 bg-ink text-white brut-border brut-hover font-black text-xs uppercase tracking-wide cursor-pointer"
-          style="border-color: var(--border-color);"
-        >
+        <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ workspaceCount }} WORKSPACES</span>
+        <NeoButton variant="primary" @click="openWorkspaceModal()">
           + ADD WORKSPACE
-        </button>
+        </NeoButton>
       </div>
 
-      <!-- Workspace Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
-          v-for="ws in workspaces"
-          :key="ws.id"
-          class="workspace-card"
+          v-for="workspace in workspaces"
+          :key="workspace.id"
+          class="workspace-card flex-col items-stretch"
         >
-          <div :class="['ws-icon', ws.color, 'text-ink']">
-            {{ getWsInitials(ws.name) }}
+          <div class="flex items-center gap-4">
+            <div :class="['ws-icon', workspace.color || 'bg-neoIndigo', 'text-ink']">
+              {{ workspaceInitials(workspace.name) }}
+            </div>
+            <div class="ws-info">
+              <div class="ws-name">{{ workspace.name }}</div>
+              <div class="ws-meta">{{ workspace.usersCount }} members - {{ workspace.status }}</div>
+            </div>
+            <span :class="workspace.status === 'active' ? 'badge-low' : 'badge-high'">
+              {{ workspace.status.toUpperCase() }}
+            </span>
           </div>
-          <div class="ws-info">
-            <div class="ws-name">{{ ws.name }}</div>
-            <div class="ws-meta">{{ ws.members }} members · {{ ws.status }}</div>
+
+          <div class="mt-3 flex items-center justify-end gap-2">
+            <button class="neo-action-btn" @click="openWorkspaceModal(workspace)">Edit</button>
+            <button class="neo-action-btn" @click="handleWorkspaceDelete(workspace)">Delete</button>
           </div>
-          <span
-            :class="ws.status === 'active' ? 'badge-low' : 'badge-high'"
-          >
-            {{ ws.status.toUpperCase() }}
-          </span>
         </div>
+      </div>
+
+      <div v-if="workspaceCount === 0" class="brut-border brut-shadow bg-neoCard p-6 text-center">
+        <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No workspaces yet</p>
       </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- TAB B: USER DIRECTORY                       -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div v-if="activeTab === 'directory'" class="space-y-4">
-      <!-- Actions -->
+    <div v-else class="space-y-4">
       <div class="flex items-center justify-between">
-        <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ directoryMembers.length }} MEMBERS</span>
-        <button
-          id="invite-member-btn"
-          @click="openInviteModal"
-          class="flex items-center gap-2 px-5 py-2.5 bg-ink text-white brut-border brut-hover font-black text-xs uppercase tracking-wide cursor-pointer"
-          style="border-color: var(--border-color);"
+        <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ memberCount }} MEMBERS</span>
+        <NeoButton
+          variant="primary"
+          :disabled="!canCreateUser"
+          @click="openUserModal()"
         >
           + CREATE ACCOUNT / INVITE
-        </button>
+        </NeoButton>
       </div>
 
-      <!-- Members Table -->
+      <div v-if="!canCreateUser" class="brut-border brut-shadow bg-neoCard p-6">
+        <p class="text-xs font-black uppercase tracking-wider text-neoMuted">
+          Create a workspace first before creating user accounts.
+        </p>
+      </div>
+
       <div class="brut-border brut-shadow bg-neoCard overflow-x-auto">
         <table class="neo-table">
           <thead>
@@ -222,30 +399,29 @@ const changeTeam = () => {
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
-              <th>Team</th>
               <th>Workspace</th>
               <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="member in directoryMembers" :key="member.id">
-              <td class="font-bold">{{ member.name }}</td>
-              <td class="text-neoMuted">{{ member.email }}</td>
+            <tr v-if="users.length === 0">
+              <td colspan="5" class="py-8 text-center text-xs font-black uppercase tracking-wider text-neoMuted">
+                No members yet
+              </td>
+            </tr>
+            <tr v-for="user in users" :key="user.id">
+              <td class="font-bold">{{ user.name }}</td>
+              <td class="text-neoMuted">{{ user.email }}</td>
               <td>
-                <span :class="member.role === 'admin' ? 'badge-admin' : 'badge-user'">
-                  {{ member.role.toUpperCase() }}
+                <span :class="user.role === 'admin' ? 'badge-admin' : 'badge-user'">
+                  {{ user.role.toUpperCase() }}
                 </span>
               </td>
-              <td>{{ member.team }}</td>
-              <td>{{ member.workspace }}</td>
+              <td>{{ user.workspaceName || '-' }}</td>
               <td class="text-right">
                 <div class="flex items-center justify-end gap-1.5">
-                  <button class="neo-action-btn" @click="openAssignWsModal(member)">
-                    ADD TO WS
-                  </button>
-                  <button class="neo-action-btn" @click="openChangeTeamModal(member)">
-                    CHANGE TEAM
-                  </button>
+                  <button class="neo-action-btn" @click="openUserModal(user)">Edit</button>
+                  <button class="neo-action-btn" @click="handleUserDelete(user)">Delete</button>
                 </div>
               </td>
             </tr>
@@ -254,189 +430,163 @@ const changeTeam = () => {
       </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- MODAL: Add Workspace                        -->
-    <!-- ═══════════════════════════════════════════ -->
     <transition name="modal">
       <div
-        v-if="showWsModal"
+        v-if="showWorkspaceModal"
         class="fixed inset-0 z-[100] w-full h-full bg-black/50 flex items-center justify-center"
-        @click.self="closeWsModal"
+        @click.self="closeWorkspaceModal"
       >
         <div class="bg-neoCard brut-border brut-shadow w-full max-w-md mx-4" @click.stop>
-          <!-- Header -->
           <div class="flex items-center justify-between p-5 brut-border border-l-0 border-r-0 border-t-0">
-            <h2 class="text-lg font-black uppercase tracking-wide text-ink">New Workspace</h2>
+            <h2 class="text-lg font-black uppercase tracking-wide text-ink">
+              {{ isEditingWorkspace ? 'Edit Workspace' : 'New Workspace' }}
+            </h2>
             <button
-              @click="closeWsModal"
+              @click="closeWorkspaceModal"
               class="w-8 h-8 brut-border bg-neoCard flex items-center justify-center font-black text-ink text-sm brut-hover cursor-pointer"
-            >✕</button>
+            >x</button>
           </div>
-          <!-- Body -->
-          <div class="p-5 space-y-4">
-            <div>
-              <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Workspace Name *</label>
-              <input
-                v-model="newWsName"
-                type="text"
-                class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none focus:shadow-[3px_3px_0_0_var(--shadow-color)]"
-                placeholder="Enter workspace name"
-                @keyup.enter="createWorkspace"
-              />
+
+          <form class="p-5 space-y-4" @submit.prevent="handleWorkspaceSubmit">
+            <NeoInput v-model="workspaceForm.name" label="Workspace Name" type="text" :error="workspaceErrors.name" required />
+            <NeoInput v-model="workspaceForm.description" label="Description" type="text" :error="workspaceErrors.description" />
+
+            <div class="flex flex-col gap-1">
+              <label class="uppercase-label text-ink">Status</label>
+              <select v-model="workspaceForm.status" class="neo-select w-full">
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
-          </div>
-          <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 p-5 brut-border border-l-0 border-r-0 border-b-0">
-            <button
-              @click="closeWsModal"
-              class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30"
-            >Cancel</button>
-            <button
-              @click="createWorkspace"
-              class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer"
-            >Create</button>
-          </div>
+
+            <p v-if="workspaceErrors.form" class="text-sm font-medium text-red-600 bg-red-50 border-[3px] border-red-600 px-4 py-3">
+              {{ workspaceErrors.form }}
+            </p>
+
+            <div class="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30"
+                @click="closeWorkspaceModal"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer"
+              >
+                {{ workspaceSaving ? 'Saving...' : 'Save' }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </transition>
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- MODAL: Invite Member                        -->
-    <!-- ═══════════════════════════════════════════ -->
     <transition name="modal">
       <div
-        v-if="showInviteModal"
+        v-if="showUserModal"
         class="fixed inset-0 z-[100] w-full h-full bg-black/50 flex items-center justify-center"
-        @click.self="closeInviteModal"
+        @click.self="closeUserModal"
       >
-        <div class="bg-neoCard brut-border brut-shadow w-full max-w-lg mx-4" @click.stop>
-          <!-- Header -->
+        <div class="bg-neoCard brut-border brut-shadow w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" @click.stop>
           <div class="flex items-center justify-between p-5 brut-border border-l-0 border-r-0 border-t-0">
-            <h2 class="text-lg font-black uppercase tracking-wide text-ink">Invite Member</h2>
+            <div>
+              <h2 class="text-lg font-black uppercase tracking-wide text-ink">
+                {{ isEditingUser ? 'Edit User' : 'Create User' }}
+              </h2>
+              <p class="text-xs font-bold text-neoMuted uppercase tracking-wide mt-1">
+                Select a workspace from saved records only.
+              </p>
+            </div>
             <button
-              @click="closeInviteModal"
+              @click="closeUserModal"
               class="w-8 h-8 brut-border bg-neoCard flex items-center justify-center font-black text-ink text-sm brut-hover cursor-pointer"
-            >✕</button>
+            >x</button>
           </div>
-          <!-- Body -->
-          <div class="p-5 space-y-4">
-            <div>
-              <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Full Name *</label>
-              <input
-                v-model="inviteForm.name"
-                type="text"
-                class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none focus:shadow-[3px_3px_0_0_var(--shadow-color)]"
-                placeholder="Enter full name"
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Email *</label>
-              <input
-                v-model="inviteForm.email"
-                type="email"
-                class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none focus:shadow-[3px_3px_0_0_var(--shadow-color)]"
-                placeholder="name@company.io"
-              />
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Role</label>
-                <select
-                  v-model="inviteForm.role"
-                  class="neo-select w-full"
-                >
+
+          <form class="p-5 space-y-4" @submit.prevent="handleUserSubmit">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <NeoInput v-model="userForm.name" label="Full Name" type="text" :error="userErrors.name" required />
+              <NeoInput v-model="userForm.username" label="Username" type="text" :error="userErrors.username" required />
+              <NeoInput v-model="userForm.email" label="Email Address" type="email" :error="userErrors.email" required />
+
+              <div class="flex flex-col gap-1">
+                <label class="uppercase-label text-ink">Role</label>
+                <select v-model="userForm.role" class="neo-select w-full">
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
                 </select>
+                <span v-if="userErrors.role" class="text-[0.6rem] font-black uppercase tracking-wide text-red-600 mt-0.5">
+                  {{ userErrors.role }}
+                </span>
               </div>
-              <div>
-                <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Team</label>
-                <select
-                  v-model="inviteForm.team"
-                  class="neo-select w-full"
-                >
-                  <option v-for="t in availableTeams" :key="t" :value="t">{{ t }}</option>
+
+              <div class="flex flex-col gap-1">
+                <label class="uppercase-label text-ink">Workspace</label>
+                <select v-model="userForm.workspace_id" class="neo-select w-full" :disabled="!workspaces.length">
+                  <option value="">{{ workspaces.length ? 'Select Workspace' : 'Create a workspace first' }}</option>
+                  <option
+                    v-for="workspace in workspaces"
+                    :key="workspace.id"
+                    :value="workspace.id"
+                  >
+                    {{ workspace.name }}{{ workspace.status === 'archived' ? ' (Archived)' : '' }}
+                  </option>
                 </select>
+                <span v-if="userErrors.workspace_id" class="text-[0.6rem] font-black uppercase tracking-wide text-red-600 mt-0.5">
+                  {{ userErrors.workspace_id }}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-3 md:col-span-2">
+                <input v-model="userForm.is_active" type="checkbox" class="w-4 h-4 brut-border" />
+                <span class="uppercase-label text-ink">Account active</span>
+              </div>
+
+              <div class="md:col-span-2">
+                <NeoInput
+                  v-model="userForm.password"
+                  label="Password"
+                  type="password"
+                  :hint="isEditingUser ? 'Optional: leave blank to keep the current password.' : 'Required: 8+ characters, uppercase, lowercase, number, and special character.'"
+                  :error="userErrors.password"
+                  :required="!isEditingUser"
+                />
+              </div>
+
+              <div class="md:col-span-2">
+                <NeoInput
+                  v-model="userForm.password_confirmation"
+                  label="Confirm Password"
+                  type="password"
+                  placeholder="********"
+                  :error="userErrors.password_confirmation"
+                  :required="!isEditingUser && !!userForm.password"
+                />
               </div>
             </div>
-          </div>
-          <!-- Footer -->
-          <div class="flex items-center justify-end gap-3 p-5 brut-border border-l-0 border-r-0 border-b-0">
-            <button
-              @click="closeInviteModal"
-              class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30"
-            >Cancel</button>
-            <button
-              @click="createMember"
-              class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer"
-            >Invite Member</button>
-          </div>
-        </div>
-      </div>
-    </transition>
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- MODAL: Assign to Workspace                  -->
-    <!-- ═══════════════════════════════════════════ -->
-    <transition name="modal">
-      <div
-        v-if="showAssignWsModal"
-        class="fixed inset-0 z-[100] w-full h-full bg-black/50 flex items-center justify-center"
-        @click.self="closeAssignWsModal"
-      >
-        <div class="bg-neoCard brut-border brut-shadow w-full max-w-sm mx-4" @click.stop>
-          <div class="flex items-center justify-between p-5 brut-border border-l-0 border-r-0 border-t-0">
-            <h2 class="text-sm font-black uppercase tracking-wide text-ink">Assign to Workspace</h2>
-            <button
-              @click="closeAssignWsModal"
-              class="w-8 h-8 brut-border bg-neoCard flex items-center justify-center font-black text-ink text-sm brut-hover cursor-pointer"
-            >✕</button>
-          </div>
-          <div class="p-5 space-y-3">
-            <p class="text-xs font-bold text-neoMuted">
-              Assigning <span class="text-ink font-black">{{ assigningMember?.name }}</span>
+            <p v-if="userErrors.form" class="text-sm font-medium text-red-600 bg-red-50 border-[3px] border-red-600 px-4 py-3">
+              {{ userErrors.form }}
             </p>
-            <select v-model="selectedWorkspace" class="neo-select w-full">
-              <option v-for="ws in workspaces" :key="ws.id" :value="ws.name">{{ ws.name }}</option>
-            </select>
-          </div>
-          <div class="flex items-center justify-end gap-3 p-5 brut-border border-l-0 border-r-0 border-b-0">
-            <button @click="closeAssignWsModal" class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30">Cancel</button>
-            <button @click="assignToWorkspace" class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer">Assign</button>
-          </div>
-        </div>
-      </div>
-    </transition>
 
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- MODAL: Change Team                          -->
-    <!-- ═══════════════════════════════════════════ -->
-    <transition name="modal">
-      <div
-        v-if="showChangeTeamModal"
-        class="fixed inset-0 z-[100] w-full h-full bg-black/50 flex items-center justify-center"
-        @click.self="closeChangeTeamModal"
-      >
-        <div class="bg-neoCard brut-border brut-shadow w-full max-w-sm mx-4" @click.stop>
-          <div class="flex items-center justify-between p-5 brut-border border-l-0 border-r-0 border-t-0">
-            <h2 class="text-sm font-black uppercase tracking-wide text-ink">Change Team</h2>
-            <button
-              @click="closeChangeTeamModal"
-              class="w-8 h-8 brut-border bg-neoCard flex items-center justify-center font-black text-ink text-sm brut-hover cursor-pointer"
-            >✕</button>
-          </div>
-          <div class="p-5 space-y-3">
-            <p class="text-xs font-bold text-neoMuted">
-              Reassigning <span class="text-ink font-black">{{ changingMember?.name }}</span>
-            </p>
-            <select v-model="selectedTeam" class="neo-select w-full">
-              <option v-for="t in availableTeams" :key="t" :value="t">{{ t }}</option>
-            </select>
-          </div>
-          <div class="flex items-center justify-end gap-3 p-5 brut-border border-l-0 border-r-0 border-b-0">
-            <button @click="closeChangeTeamModal" class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30">Cancel</button>
-            <button @click="changeTeam" class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer">Save</button>
-          </div>
+            <div class="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30"
+                @click="closeUserModal"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer"
+              >
+                {{ userSaving ? 'Saving...' : 'Save User' }}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </transition>

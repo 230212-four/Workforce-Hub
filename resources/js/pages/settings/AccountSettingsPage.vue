@@ -1,13 +1,21 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const formData = ref({
-  firstName: 'Admin',
-  lastName: 'User',
-  email: 'admin@workforcehub.com',
-  phone: '+1 (555) 123-4567',
-  department: 'Management',
-  role: 'Administrator'
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  department: '',
+  role: ''
+})
+
+const profileInitials = computed(() => {
+  return [formData.value.firstName, formData.value.lastName]
+    .filter(Boolean)
+    .map(part => part.trim()[0])
+    .join('')
+    .toUpperCase()
 })
 
 const handleSave = () => {
@@ -32,10 +40,10 @@ const handlePasswordChange = () => {
       <!-- Avatar -->
       <div class="flex items-center gap-5 pb-5 brut-border border-l-0 border-r-0 border-t-0 mb-5">
         <div class="h-16 w-16 brut-border brut-shadow-sm bg-neoPink flex items-center justify-center text-ink font-black text-xl flex-shrink-0">
-          JD
+          {{ profileInitials || '—' }}
         </div>
         <div>
-          <h3 class="font-black text-ink uppercase text-sm mb-1">{{ formData.firstName }} {{ formData.lastName }}</h3>
+          <h3 class="font-black text-ink uppercase text-sm mb-1">{{ [formData.firstName, formData.lastName].filter(Boolean).join(' ') || 'Account Profile' }}</h3>
           <button class="text-xs font-bold text-neoIndigo hover:underline cursor-pointer">Change Avatar</button>
         </div>
       </div>

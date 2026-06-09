@@ -1,24 +1,20 @@
 <script setup>
 defineProps({
   modelValue: { type: [String, Number], default: '' },
-  label:      { type: String, required: true },
-  type:       { type: String, default: 'text' },
-  placeholder:{ type: String, default: '' },
-  required:   { type: Boolean, default: false },
-  /**
-   * Validation error — pass a non-empty string to show the message,
-   * or `true` for a generic error state without a message.
-   */
-  error:      { type: [String, Boolean], default: '' }
+  label: { type: String, required: true },
+  type: { type: String, default: 'text' },
+  placeholder: { type: String, default: '' },
+  required: { type: Boolean, default: false },
+  hint: { type: String, default: '' },
+  error: { type: [String, Boolean], default: '' }
 })
+
 defineEmits(['update:modelValue'])
 </script>
 
 <template>
   <div class="flex flex-col gap-1">
-    <label
-      :class="['uppercase-label', error ? 'text-red-600' : 'text-ink']"
-    >
+    <label :class="['uppercase-label', error ? 'text-red-600' : 'text-ink']">
       {{ label }}
     </label>
     <input
@@ -34,12 +30,18 @@ defineEmits(['update:modelValue'])
           : 'brut-border brut-shadow-sm text-ink focus:shadow-[3px_3px_0_0_var(--shadow-color)]'
       ]"
     >
-    <!-- Error message -->
     <span
       v-if="error && typeof error === 'string' && error.length"
       class="text-[0.6rem] font-black uppercase tracking-wide text-red-600 mt-0.5"
     >
       {{ error }}
+    </span>
+    <span
+      v-if="hint"
+      class="text-[0.65rem] font-black uppercase tracking-wide text-ink/55 mt-0.5 flex items-start gap-1"
+    >
+      <span aria-hidden="true">•</span>
+      <span>{{ hint }}</span>
     </span>
   </div>
 </template>
