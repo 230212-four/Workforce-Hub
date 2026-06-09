@@ -85,7 +85,7 @@ const closeSidebar = () => emit('close')
     <!-- TIP Box -->
     <div class="neo-tip-box">
       <span class="tip-label">TIP</span>
-      <p>Press <span class="key-badge">N</span> to create a new task fast.</p>
+      <p>Press <span class="key-badge">N</span> to create a task. Press <span class="key-badge">⌘</span><span class="key-badge">K</span> for the command palette.</p>
     </div>
   </aside>
 
@@ -177,7 +177,7 @@ const closeSidebar = () => emit('close')
         <!-- TIP Box -->
         <div class="neo-tip-box">
           <span class="tip-label">TIP</span>
-          <p>Press <span class="key-badge">N</span> to create a new task fast.</p>
+          <p>Press <span class="key-badge">N</span> to create a task. Press <span class="key-badge">⌘</span><span class="key-badge">K</span> for the command palette.</p>
         </div>
       </aside>
     </transition>

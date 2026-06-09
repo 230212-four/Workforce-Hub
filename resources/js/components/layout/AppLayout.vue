@@ -5,6 +5,7 @@ import Navbar from './Navbar.vue'
 import CreateTaskModal from '../modals/CreateTaskModal.vue'
 import EditTaskModal from '../modals/EditTaskModal.vue'
 import ToastContainer from '../ui/ToastContainer.vue'
+import CommandPalette from '../ui/CommandPalette.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useToast } from '../../composables/useToast'
 
@@ -45,10 +46,34 @@ const handleSaveTask = (taskData) => {
 // ── Mobile sidebar state ──
 const sidebarOpen = ref(false)
 
-// ── Global hotkey: 'N' opens create task modal ──
+// ── Command Palette ──
+const showCommandPalette = ref(false)
+const openCommandPalette = () => { showCommandPalette.value = true }
+const closeCommandPalette = () => { showCommandPalette.value = false }
+
+// ── Global hotkeys ──
 const handleKeydown = (e) => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
-  if (showCreateModal.value || showEditModal.value) return
+  // Skip if inside form fields
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+    // But still allow Cmd/Ctrl+K inside inputs
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault()
+      openCommandPalette()
+    }
+    return
+  }
+
+  // Command palette: Cmd+K / Ctrl+K
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    openCommandPalette()
+    return
+  }
+
+  // Don't handle other shortcuts when modals/palette are open
+  if (showCreateModal.value || showEditModal.value || showCommandPalette.value) return
+
+  // 'N' opens create task modal
   if (e.key === 'n' || e.key === 'N') {
     e.preventDefault()
     openCreateModal()
@@ -91,6 +116,12 @@ provide('addToast',        addToast)
       :task="editingTask"
       @close="closeEditModal"
       @save="handleSaveTask"
+    />
+
+    <!-- Command Palette -->
+    <CommandPalette
+      :isOpen="showCommandPalette"
+      @close="closeCommandPalette"
     />
 
     <!-- Global Toast Notifications -->

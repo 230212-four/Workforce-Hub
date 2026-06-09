@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { renderMarkdown } from '../../composables/useMarkdown'
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false },
@@ -16,6 +17,13 @@ const formData = ref({
   priority: 'medium',
   dueDate: '',
   assignee: 'Admin'
+})
+
+// ── Markdown preview toggle ──
+const showPreview = ref(false)
+
+const parsedDescription = computed(() => {
+  return renderMarkdown(formData.value.description)
 })
 
 const priorities = [
@@ -35,6 +43,7 @@ const statuses = [
 watch(() => props.task, (newTask) => {
   if (newTask) {
     formData.value = { ...newTask }
+    showPreview.value = false
   }
 }, { immediate: true })
 
@@ -78,15 +87,59 @@ const handleSubmit = () => {
             />
           </div>
 
-          <!-- Description -->
+          <!-- Description with Edit/Preview toggle -->
           <div>
-            <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Description</label>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-xs font-black text-ink uppercase tracking-wide">Description</label>
+              <div class="neo-toggle-group" style="border-width: 1px;">
+                <button
+                  type="button"
+                  :class="[
+                    'px-2 py-0.5 text-[0.55rem] font-black uppercase tracking-wide cursor-pointer transition-colors',
+                    !showPreview ? 'bg-ink text-white' : 'bg-neoCard text-ink hover:bg-neoYellow/30'
+                  ]"
+                  style="border: none; border-right: 1px solid var(--border-color);"
+                  @click="showPreview = false"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  :class="[
+                    'px-2 py-0.5 text-[0.55rem] font-black uppercase tracking-wide cursor-pointer transition-colors',
+                    showPreview ? 'bg-ink text-white' : 'bg-neoCard text-ink hover:bg-neoYellow/30'
+                  ]"
+                  style="border: none;"
+                  @click="showPreview = true"
+                >
+                  Preview
+                </button>
+              </div>
+            </div>
+
+            <!-- Edit mode: textarea -->
             <textarea
+              v-if="!showPreview"
               v-model="formData.description"
               class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none focus:shadow-[3px_3px_0_0_var(--shadow-color)] resize-none"
-              placeholder="Enter task description"
-              rows="3"
+              placeholder="Supports **bold**, *italic*, # headings, - bullet lists"
+              rows="4"
             ></textarea>
+
+            <!-- Preview mode: rendered markdown -->
+            <div
+              v-else
+              class="w-full px-3 py-2 brut-border bg-neoCard min-h-[6rem]"
+            >
+              <div
+                v-if="parsedDescription"
+                class="md-rendered"
+                v-html="parsedDescription"
+              ></div>
+              <p v-else class="text-xs text-neoMuted italic py-2">
+                No description to preview.
+              </p>
+            </div>
           </div>
 
           <!-- Priority (Horizontal Buttons) -->

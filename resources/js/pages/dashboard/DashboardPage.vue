@@ -3,11 +3,13 @@ import { computed, inject } from 'vue'
 import StatsCard from '../../components/dashboard/StatsCard.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useAuth } from '../../composables/useAuth'
+import { useToast } from '../../composables/useToast'
 
 const openCreateModal = inject('openCreateModal')
 const openEditModal = inject('openEditModal')
 
 const { currentUser, isAdmin } = useAuth()
+const { addToast } = useToast()
 
 const {
   tasks,
@@ -59,6 +61,17 @@ const recentTasks = computed(() => {
 
 const handleToggleComplete = (e, taskId) => {
   e.stopPropagation()
+  // Permission guard: users can only check their own tasks
+  if (!isAdmin.value) {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (task && task.assignedTo !== currentUser.value.name) {
+      addToast({
+        message: 'Permission Denied: You can only complete your own tasks.',
+        type: 'error'
+      })
+      return
+    }
+  }
   toggleComplete(taskId)
 }
 

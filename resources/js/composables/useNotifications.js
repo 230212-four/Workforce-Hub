@@ -7,7 +7,8 @@ const notifications = ref([
     message: '"Fix bug in payment processing" is past its due date.',
     time: '2 hours ago',
     read: false,
-    type: 'warning'
+    type: 'warning',
+    taskId: 'TSK-003'
   },
   {
     id: 2,
@@ -15,7 +16,8 @@ const notifications = ref([
     message: '"Set up CI/CD pipeline" was marked as done.',
     time: '5 hours ago',
     read: false,
-    type: 'success'
+    type: 'success',
+    taskId: 'TSK-006'
   },
   {
     id: 3,
@@ -23,7 +25,8 @@ const notifications = ref([
     message: 'You have been assigned to "Optimize database queries".',
     time: '1 day ago',
     read: false,
-    type: 'info'
+    type: 'info',
+    taskId: 'TSK-005'
   },
   {
     id: 4,
@@ -31,7 +34,8 @@ const notifications = ref([
     message: '"Update user authentication system" moved to In Progress.',
     time: '2 days ago',
     read: true,
-    type: 'info'
+    type: 'info',
+    taskId: 'TSK-001'
   }
 ])
 

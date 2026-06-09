@@ -1,14 +1,16 @@
 <script setup>
-import { ref, inject, computed } from 'vue'
+import { ref, inject, computed, nextTick } from 'vue'
 import KanbanTaskCard from '../../components/kanban/KanbanTaskCard.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useAuth } from '../../composables/useAuth'
+import { useToast } from '../../composables/useToast'
 
 const openCreateModal = inject('openCreateModal')
 const openEditModal = inject('openEditModal')
 
-const { moveTask, teams, members, getFilteredColumns, getUserColumns } = useTaskStore()
+const { moveTask, teams, members, getFilteredColumns, getUserColumns, tasks } = useTaskStore()
 const { isAdmin, currentUser } = useAuth()
+const { addToast } = useToast()
 
 // ── Admin filters ──
 const adminTeamFilter = ref('all')
@@ -50,13 +52,101 @@ const handleDrop = (e, columnId) => {
   e.preventDefault()
   const taskId = e.dataTransfer.getData('text/plain')
   if (taskId) {
+    // Double-check permission on drop side too
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!isAdmin.value && task && task.assignedTo !== currentUser.value.name) {
+      addToast({
+        message: 'Permission Denied: You can only move your own tasks.',
+        type: 'error'
+      })
+      dragOverColumn.value = null
+      return
+    }
     moveTask(taskId, columnId)
   }
   dragOverColumn.value = null
 }
 
-const handleCardClick = (task) => {
-  openEditModal(task)
+// ── Card click — with Shift for bulk selection ──
+const selectedCards = ref(new Set())
+
+const handleCardClick = (task, event) => {
+  if (event && event.shiftKey) {
+    // Toggle selection
+    const newSet = new Set(selectedCards.value)
+    if (newSet.has(task.id)) {
+      newSet.delete(task.id)
+    } else {
+      newSet.add(task.id)
+    }
+    selectedCards.value = newSet
+  } else {
+    openEditModal(task)
+  }
+}
+
+const clearSelection = () => {
+  selectedCards.value = new Set()
+}
+
+// ── Bulk actions ──
+const bulkArchive = () => {
+  selectedCards.value.forEach(taskId => {
+    moveTask(taskId, 'done')
+  })
+  addToast({ message: `${selectedCards.value.size} task(s) archived.`, type: 'success' })
+  clearSelection()
+}
+
+const bulkReassign = () => {
+  const { updateTask } = useTaskStore()
+  selectedCards.value.forEach(taskId => {
+    updateTask(taskId, { assignedTo: currentUser.value.name })
+  })
+  addToast({ message: `${selectedCards.value.size} task(s) reassigned to you.`, type: 'success' })
+  clearSelection()
+}
+
+const hasSelection = computed(() => selectedCards.value.size > 0)
+
+// ── Keyboard-driven column movement ──
+const statusOrder = ['todo', 'in-progress', 'review', 'done']
+
+const handleMoveLeft = (taskId) => {
+  const task = tasks.value.find(t => t.id === taskId)
+  if (!task) return
+  // Permission check for users
+  if (!isAdmin.value && task.assignedTo !== currentUser.value.name) {
+    addToast({ message: 'Permission Denied: You can only move your own tasks.', type: 'error' })
+    return
+  }
+  const currentIndex = statusOrder.indexOf(task.status)
+  if (currentIndex > 0) {
+    moveTask(taskId, statusOrder[currentIndex - 1])
+    // Re-focus the card after Vue re-renders
+    nextTick(() => {
+      const card = document.querySelector(`[data-task-id="${taskId}"]`)
+      if (card) card.focus()
+    })
+  }
+}
+
+const handleMoveRight = (taskId) => {
+  const task = tasks.value.find(t => t.id === taskId)
+  if (!task) return
+  // Permission check for users
+  if (!isAdmin.value && task.assignedTo !== currentUser.value.name) {
+    addToast({ message: 'Permission Denied: You can only move your own tasks.', type: 'error' })
+    return
+  }
+  const currentIndex = statusOrder.indexOf(task.status)
+  if (currentIndex < statusOrder.length - 1) {
+    moveTask(taskId, statusOrder[currentIndex + 1])
+    nextTick(() => {
+      const card = document.querySelector(`[data-task-id="${taskId}"]`)
+      if (card) card.focus()
+    })
+  }
 }
 
 const getColumnHeaderBg = (colId) => {
@@ -71,7 +161,7 @@ const getColumnHeaderBg = (colId) => {
 
 const getColumnBodyBg = (colId) => {
   const map = {
-    'todo': 'bg-white/50',
+    'todo': 'bg-white/50 dark:bg-white/5',
     'in-progress': 'bg-neoYellow/20',
     'review': 'bg-neoPink/20',
     'done': 'bg-neoMint/20'
@@ -97,6 +187,30 @@ const getColumnBodyBg = (colId) => {
         <span class="bg-neoIndigo text-white w-5 h-5 flex items-center justify-center text-[0.6rem] font-black brut-border" style="border-color: rgba(255,255,255,0.3);">N</span>
       </button>
     </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- BULK ACTIONS TOOLBAR                        -->
+    <!-- ═══════════════════════════════════════════ -->
+    <transition name="dropdown">
+      <div v-if="hasSelection" class="bulk-toolbar">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+          <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
+        <span class="text-xs font-black uppercase tracking-wider flex-shrink-0">
+          {{ selectedCards.size }} Selected
+        </span>
+        <span class="text-xs opacity-40">|</span>
+        <button class="bulk-toolbar-btn" @click="bulkArchive">
+          📦 Bulk Archive
+        </button>
+        <button class="bulk-toolbar-btn" @click="bulkReassign">
+          👤 Reassign to Me
+        </button>
+        <button class="bulk-toolbar-btn danger" @click="clearSelection">
+          ✕ Clear
+        </button>
+      </div>
+    </transition>
 
     <!-- ═══════════════════════════════════════════ -->
     <!-- ADMIN: God View Filter Bar                  -->
@@ -188,7 +302,10 @@ const getColumnBodyBg = (colId) => {
             v-for="task in column.tasks"
             :key="task.id"
             :task="task"
-            @click="handleCardClick"
+            :isSelected="selectedCards.has(task.id)"
+            @click="handleCardClick(task, $event)"
+            @move-left="handleMoveLeft"
+            @move-right="handleMoveRight"
           />
 
           <!-- Empty state -->

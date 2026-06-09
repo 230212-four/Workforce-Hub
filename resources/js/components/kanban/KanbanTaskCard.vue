@@ -1,16 +1,42 @@
 <script setup>
+import { computed } from 'vue'
+import { useAuth } from '../../composables/useAuth'
+import { useToast } from '../../composables/useToast'
+import { renderMarkdownTruncated } from '../../composables/useMarkdown'
+
 const props = defineProps({
-  task: { type: Object, required: true }
+  task: { type: Object, required: true },
+  isSelected: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['click', 'dragstart'])
+const emit = defineEmits(['click', 'dragstart', 'move-left', 'move-right'])
+
+const { currentUser, isAdmin } = useAuth()
+const { addToast } = useToast()
 
 const getPriorityClass = (priority) => {
   const map = { high: 'badge-high', medium: 'badge-medium', low: 'badge-low' }
   return map[priority] || 'badge-medium'
 }
 
+// ── Markdown snippet for description ──
+const descriptionHtml = computed(() => {
+  if (!props.task.description) return ''
+  return renderMarkdownTruncated(props.task.description, 80)
+})
+
+// ── Permission-guarded drag ──
 const handleDragStart = (e) => {
+  // If user role and task is NOT assigned to them → deny
+  if (!isAdmin.value && props.task.assignedTo !== currentUser.value.name) {
+    e.preventDefault()
+    addToast({
+      message: 'Permission Denied: You can only move your own tasks.',
+      type: 'error'
+    })
+    return
+  }
+
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', props.task.id)
   e.target.classList.add('kanban-card-dragging')
@@ -20,17 +46,41 @@ const handleDragStart = (e) => {
 const handleDragEnd = (e) => {
   e.target.classList.remove('kanban-card-dragging')
 }
+
+// ── Keyboard navigation: Arrow keys move columns ──
+const handleKeydown = (e) => {
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    emit('move-left', props.task.id)
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    emit('move-right', props.task.id)
+  }
+}
 </script>
 
 <template>
   <div
-    class="bg-neoCard brut-border brut-shadow-sm p-3.5 cursor-grab brut-hover active:cursor-grabbing"
+    :class="[
+      'bg-neoCard brut-border brut-shadow-sm p-3.5 cursor-grab brut-hover active:cursor-grabbing kanban-card-focus',
+      isSelected ? 'kanban-card-selected' : ''
+    ]"
     draggable="true"
+    tabindex="0"
+    :data-task-id="task.id"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
     @click="$emit('click', task)"
+    @keydown="handleKeydown"
   >
-    <p class="text-sm font-bold text-ink leading-tight mb-3">{{ task.title }}</p>
+    <p class="text-sm font-bold text-ink leading-tight mb-1">{{ task.title }}</p>
+
+    <!-- Markdown description snippet -->
+    <div
+      v-if="descriptionHtml"
+      class="md-snippet mb-2"
+      v-html="descriptionHtml"
+    ></div>
 
     <div class="flex items-center justify-between pt-2.5" style="border-top: 1px solid var(--border-color); opacity: 0.15;">
     </div>

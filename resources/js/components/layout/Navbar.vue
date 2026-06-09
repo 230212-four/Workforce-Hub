@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotifications } from '../../composables/useNotifications'
 import { useAuth } from '../../composables/useAuth'
-import NotificationDropdown from './NotificationDropdown.vue'
+import { useDarkMode } from '../../composables/useDarkMode'
+import NotificationDrawer from './NotificationDrawer.vue'
 import AccountSettingsModal from '../settings/AccountSettingsModal.vue'
 
 const emit = defineEmits(['toggle-sidebar'])
@@ -11,16 +12,28 @@ const emit = defineEmits(['toggle-sidebar'])
 const router = useRouter()
 const { hasUnread } = useNotifications()
 const { currentUser, isAdmin, toggleRole } = useAuth()
+const { isDarkMode, toggleDarkMode } = useDarkMode()
 
 const showNotifications     = ref(false)
 const showAccountSettings   = ref(false)
 
-const toggleNotifications = () => {
-  showNotifications.value = !showNotifications.value
+// ── Notification Drawer ──
+const openNotificationDrawer = () => {
+  showNotifications.value = true
 }
 
-const closeNotifications = () => {
+const closeNotificationDrawer = () => {
   showNotifications.value = false
+}
+
+// When a notification is clicked that links to a task, open the EditTaskModal
+const openEditModal = inject('openEditModal')
+
+const handleNotificationTaskOpen = (task) => {
+  closeNotificationDrawer()
+  if (task && openEditModal) {
+    openEditModal(task)
+  }
 }
 
 const openAccountSettings  = () => { showAccountSettings.value = true  }
@@ -81,11 +94,51 @@ const logout = () => {
         </svg>
       </button>
 
+      <!-- ── Dark Mode Toggle ────────────────────────────────────── -->
+      <button
+        id="theme-toggle"
+        @click="toggleDarkMode"
+        class="w-10 h-10 brut-border bg-neoCard flex items-center justify-center brut-hover cursor-pointer"
+        :title="isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        :aria-label="isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+      >
+        <!-- Sun icon (shown in dark mode — click for light) -->
+        <svg
+          v-if="isDarkMode"
+          class="w-[18px] h-[18px] text-ink theme-icon-spin"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          stroke-width="2.5"
+        >
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+        <!-- Moon icon (shown in light mode — click for dark) -->
+        <svg
+          v-else
+          class="w-[18px] h-[18px] text-ink theme-icon-spin"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          stroke-width="2.5"
+        >
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      </button>
+
       <!-- Notification Bell -->
       <div class="relative">
         <button
           id="notification-bell"
-          @click="toggleNotifications"
+          @click="openNotificationDrawer"
           class="w-10 h-10 brut-border bg-neoCard flex items-center justify-center brut-hover cursor-pointer"
         >
           <svg class="w-[18px] h-[18px] text-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
@@ -93,11 +146,6 @@ const logout = () => {
           </svg>
           <span v-if="hasUnread" class="notification-dot"></span>
         </button>
-        <!-- Notification Dropdown -->
-        <NotificationDropdown
-          :isOpen="showNotifications"
-          @close="closeNotifications"
-        />
       </div>
 
       <!-- Settings Gear -->
@@ -137,6 +185,13 @@ const logout = () => {
       </button>
     </div>
   </header>
+
+  <!-- Notification Drawer (Teleported inside the component itself) -->
+  <NotificationDrawer
+    :isOpen="showNotifications"
+    @close="closeNotificationDrawer"
+    @open-task="handleNotificationTaskOpen"
+  />
 
   <!-- Account Settings Modal (teleported outside header flow) -->
   <AccountSettingsModal

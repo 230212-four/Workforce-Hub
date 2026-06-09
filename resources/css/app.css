@@ -26,18 +26,22 @@
     --hover-lift: -2px;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SOFT BRUTALISM — DARK MODE
+   Charcoal backgrounds, dark borders (no white glare), off-white text
+   ═══════════════════════════════════════════════════════════════════════════ */
 .dark {
-    --cream: #0f172a;
-    --cream-cool: #1e293b;
-    --ink: #e2e8f0;
-    --background: #0c1222;
-    --foreground: #e2e8f0;
-    --input-background: #334155;
-    --card-bg: #1e293b;
-    --sidebar-bg: #151e2e;
-    --border-color: #475569;
-    --shadow-color: #0f172a;
-    --muted-text: rgba(226, 232, 240, 0.55);
+    --cream: #09090b;
+    --cream-cool: #0f0f12;
+    --ink: #e4e4e7;
+    --background: #09090b;
+    --foreground: #e4e4e7;
+    --input-background: #27272a;
+    --card-bg: #18181b;
+    --sidebar-bg: #0f0f12;
+    --border-color: #27272a;
+    --shadow-color: #000000;
+    --muted-text: rgba(228, 228, 231, 0.50);
     --mint: #6ee7b7;
     --pink: #fda4af;
     --yellow: #facc15;
@@ -283,6 +287,20 @@
         transform: rotate(2deg);
     }
 
+    /* ── Bulk-Selected Card ──────────────────────────────────────────────── */
+    .kanban-card-selected {
+        border-color: var(--indigo-brut) !important;
+        border-width: 3px !important;
+        box-shadow: 0 0 0 2px var(--indigo-brut), 4px 4px 0 0 var(--shadow-color) !important;
+    }
+
+    /* ── Keyboard-Focused Card ───────────────────────────────────────────── */
+    .kanban-card-focus:focus-visible {
+        outline: 3px solid var(--indigo-brut);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.25), 4px 4px 0 0 var(--shadow-color);
+    }
+
     /* Priority badges */
     .badge-high {
         background: var(--pink);
@@ -477,7 +495,7 @@
     }
 
     .dark .neo-select {
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23e2e8f0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23e4e4e7' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     }
 
     .neo-select:focus {
@@ -603,6 +621,142 @@
         transform: translate(1px, 1px);
         box-shadow: 0 0 0 0 var(--shadow-color);
     }
+
+    /* ── Markdown Rendered Content ────────────────────────────────────────── */
+    .md-rendered {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--ink);
+        line-height: 1.6;
+    }
+
+    .md-rendered h1 {
+        font-size: 1.25rem;
+        font-weight: 900;
+        margin: 0.75rem 0 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .md-rendered h2 {
+        font-size: 1.05rem;
+        font-weight: 900;
+        margin: 0.6rem 0 0.4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .md-rendered h3 {
+        font-size: 0.9rem;
+        font-weight: 800;
+        margin: 0.5rem 0 0.35rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .md-rendered p {
+        margin: 0.25rem 0;
+    }
+
+    .md-rendered ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0.35rem 0;
+    }
+
+    .md-rendered ul li {
+        position: relative;
+        padding-left: 1rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .md-rendered ul li::before {
+        content: '■';
+        position: absolute;
+        left: 0;
+        color: var(--indigo-brut);
+        font-size: 0.5rem;
+        top: 0.35rem;
+    }
+
+    .md-rendered strong {
+        font-weight: 900;
+    }
+
+    .md-rendered em {
+        font-style: italic;
+    }
+
+    /* Truncated MD snippet on Kanban card */
+    .md-snippet {
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: var(--muted-text);
+        line-height: 1.4;
+        max-height: 2.8em;
+        overflow: hidden;
+    }
+
+    .md-snippet strong {
+        font-weight: 800;
+    }
+
+    .md-snippet p {
+        margin: 0;
+    }
+
+    .md-snippet ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    /* ── Bulk Actions Toolbar ─────────────────────────────────────────────── */
+    .bulk-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        background: var(--ink);
+        color: var(--card-bg);
+        border: 2px solid var(--border-color);
+        box-shadow: 4px 4px 0 0 var(--shadow-color);
+        animation: toolbar-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .dark .bulk-toolbar {
+        background: #27272a;
+        color: #e4e4e7;
+        border-color: #3f3f46;
+    }
+
+    .bulk-toolbar-btn {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.6rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border: 2px solid currentColor;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        transition: background-color 0.12s, transform 0.1s;
+    }
+
+    .bulk-toolbar-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        transform: translate(-1px, -1px);
+    }
+
+    .bulk-toolbar-btn.danger {
+        border-color: var(--destructive);
+        color: var(--destructive);
+    }
+
+    .bulk-toolbar-btn.danger:hover {
+        background: var(--destructive);
+        color: #000;
+    }
 }
 
 @layer utilities {
@@ -699,6 +853,7 @@
         opacity: 0;
         transform: translateX(40px) scale(0.95);
     }
+
     to {
         opacity: 1;
         transform: translateX(0) scale(1);
@@ -710,6 +865,7 @@
         opacity: 1;
         transform: translateX(0) scale(1);
     }
+
     to {
         opacity: 0;
         transform: translateX(40px) scale(0.95);
@@ -733,6 +889,7 @@
     from {
         transform: translateX(-100%);
     }
+
     to {
         transform: translateX(0);
     }
@@ -742,6 +899,7 @@
     from {
         transform: translateX(0);
     }
+
     to {
         transform: translateX(-100%);
     }
@@ -767,4 +925,76 @@
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
+}
+
+/* ─── Notification Drawer (right slide) ───────────────────── */
+@keyframes notif-drawer-in {
+    from {
+        transform: translateX(100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes notif-drawer-out {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(100%);
+    }
+}
+
+.notif-drawer-enter-active {
+    animation: notif-drawer-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notif-drawer-leave-active {
+    animation: notif-drawer-out 0.2s ease-in;
+}
+
+/* ─── Command Palette ─────────────────────────────────────── */
+@keyframes palette-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96) translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.palette-enter-active {
+    animation: palette-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.palette-leave-active {
+    animation: palette-in 0.12s ease-in reverse;
+}
+
+/* ─── Bulk Toolbar Slide ──────────────────────────────────── */
+@keyframes toolbar-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ─── Theme Toggle Icon Spin ──────────────────────────────── */
+.theme-icon-spin {
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.theme-icon-spin:hover {
+    transform: rotate(60deg);
 }

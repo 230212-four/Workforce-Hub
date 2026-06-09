@@ -397,12 +397,13 @@ const createUserAccount = () => {
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- SLIDE-OUT DRAWER — Workspace Detail                                 -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
 
     <!-- Backdrop -->
     <transition name="fade">
       <div
         v-if="drawerOpen"
-        class="fixed inset-0 z-[100] w-screen h-screen bg-zinc-900/80 backdrop-blur-sm"
+        class="fixed inset-0 z-[9999] w-screen h-screen bg-zinc-900/80 backdrop-blur-sm"
         @click="closeDrawer"
       />
     </transition>
@@ -411,7 +412,7 @@ const createUserAccount = () => {
     <transition name="ws-drawer">
       <div
         v-if="drawerOpen && drawerWorkspace"
-        class="fixed top-0 right-0 h-screen z-[101] w-full max-w-md bg-neoCard flex flex-col"
+        class="fixed top-0 right-0 h-screen z-[10000] w-full max-w-md bg-neoCard flex flex-col"
         style="border-left: 3px solid var(--border-color); box-shadow: -6px 0 0 0 var(--shadow-color);"
       >
         <!-- Drawer Header -->
@@ -453,8 +454,7 @@ const createUserAccount = () => {
           </button>
           <button
             @click="deleteWorkspace(drawerWorkspace)"
-            class="flex-1 py-2 brut-border font-black text-xs uppercase tracking-wide text-neoCard bg-destructive/90 hover:bg-destructive brut-hover cursor-pointer transition-colors"
-            style="border-color: var(--border-color);"
+            class="flex-1 py-2 border-2 border-black font-black text-xs uppercase tracking-wide text-black bg-rose-500 hover:bg-rose-600 brut-hover cursor-pointer transition-colors"
           >
             🗑 Delete
           </button>
@@ -516,13 +516,16 @@ const createUserAccount = () => {
       </div>
     </transition>
 
+    </Teleport>
+
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- MODAL — Add Member to Workspace                                     -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
     <transition name="modal">
       <div
         v-if="showAddMemberModal"
-        class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
         @click.self="closeAddMemberModal"
       >
         <div class="bg-neoCard brut-border brut-shadow w-full max-w-sm mx-4" @click.stop>
@@ -574,14 +577,16 @@ const createUserAccount = () => {
         </div>
       </div>
     </transition>
+    </Teleport>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- MODAL — Create Workspace                                            -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
     <transition name="modal">
       <div
         v-if="showWsModal"
-        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
         @click.self="closeWsModal"
       >
         <div class="bg-neoCard brut-border brut-shadow w-full max-w-md mx-4" @click.stop>
@@ -620,14 +625,16 @@ const createUserAccount = () => {
         </div>
       </div>
     </transition>
+    </Teleport>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- MODAL — Create User Account (Internal Tool)                         -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
     <transition name="modal">
       <div
         v-if="showInviteModal"
-        class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
         @click.self="closeInviteModal"
       >
         <div class="bg-neoCard brut-border brut-shadow w-full max-w-lg mx-4" @click.stop>
@@ -742,6 +749,7 @@ const createUserAccount = () => {
         </div>
       </div>
     </transition>
+    </Teleport>
 
   </div><!-- /root -->
 </template>
