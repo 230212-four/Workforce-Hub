@@ -1,59 +1,128 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Workforce Hub
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Workforce Hub is a modern, collaborative team and task management application. Built as a Single Page Application (SPA) using **Laravel 12 (PHP)** and **Vue 3 (JS/Vite)**, it provides dynamic work organization, interactive task tracking, and role-based administration.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Features Implemented
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+*   **Secure Authentication & Session Management**: Built using Laravel Sanctum for API token-based authentication. Features secure user registration, login, profile editing, and password updating.
+*   **Interactive Kanban Board**: Fully functional Kanban task board allowing users to track progress across four stages (`Todo`, `In-Progress`, `Review`, and `Done`).
+*   **Advanced Task Management**: CRUD capabilities on tasks, including title, description, priority (low, medium, high), due dates, and multiple assignees (up to 5 per task).
+*   **Workspace & Team Administration**: Administrative control over workspaces (name, description, status, accent color) and organization of teams within specific workspaces.
+*   **Admin User Management**: Admin panel to monitor, create, update, and manage account statuses of all users within the system.
+*   **Notification Engine**: Real-time logging of user and task actions (e.g., assignment, status change, deletion) with a dedicated notification center for tracking unread notices.
+*   **Preferences & Theme Settings**: Customizable settings for active profiles including dark, light, and system theme preferences, alongside custom notification toggles.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Project Setup
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Installation Steps
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1.  **Clone the Repository**:
+    ```bash
+    git clone <repository-url>
+    cd Workforce-Hub
+    ```
 
-## Laravel Sponsors
+2.  **Run the Automatic Setup Script**:
+    The project includes a pre-configured Composer script to install dependencies and run initial setups:
+    ```bash
+    composer run setup
+    ```
+    *This command will automatically install PHP dependencies, copy `.env.example` to `.env`, generate the application key, install npm dependencies, and compile frontend assets.*
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+3.  **Alternative Manual Setup**:
+    If you prefer to perform the setup steps manually, run:
+    ```bash
+    # Install backend dependencies
+    composer install
 
-### Premium Partners
+    # Create environment configuration
+    cp .env.example .env
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+    # Generate application key
+    php artisan key:generate
 
-## Contributing
+    # Install frontend dependencies
+    npm install
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+    # Build assets
+    npm run build
+    ```
 
-## Code of Conduct
+4.  **Database Migration & Seeding**:
+    Migrate the schema and populate the database with default admin credentials:
+    ```bash
+    php artisan migrate --seed
+    ```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+5.  **Running the Application**:
+    You can run the development servers concurrently using:
+    ```bash
+    composer run dev
+    ```
+    *This runs the PHP server, Tailwind/Vite development server, queue listener, and log monitor in a single terminal process.*
 
-## Security Vulnerabilities
+    Alternatively, start them separately:
+    ```bash
+    # Run Laravel backend server
+    php artisan serve
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+    # Run Vite frontend server
+    npm run dev
+    ```
 
-## License
+---
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Environment Setup
+
+The application reads its environment configuration from the `.env` file. You should ensure the following variables are customized:
+
+*   `APP_NAME`: Name of the application (defaults to `Laravel`).
+*   `APP_ENV`: Environment mode (typically `local` or `production`).
+*   `APP_KEY`: Application key (auto-generated).
+*   `APP_URL`: Base URL of the backend API (defaults to `http://localhost`).
+*   `ADMIN_NAME`: Full name of the seeded system admin (defaults to `System Admin`).
+*   `ADMIN_USERNAME`: Username of the seeded system admin (defaults to `admin`).
+*   `ADMIN_EMAIL`: Email of the seeded system admin (defaults to `admin@workforcehub.com`).
+*   `ADMIN_PASSWORD`: Password of the seeded system admin (defaults to `Admin123!`).
+
+---
+
+### Database Configuration
+
+Configure your database connection in the `.env` file under the following block:
+
+```ini
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=workforce_hub
+DB_USERNAME=root
+DB_PASSWORD=your_mysql_password
+```
+
+Make sure the MySQL/MariaDB database specified in `DB_DATABASE` (default: `workforce_hub`) is created on your server before running migrations:
+```bash
+php artisan migrate --seed
+```
+
+---
+
+## Assumptions Made
+
+1.  **SPA Architecture**: The application operates strictly as a Single Page Application (SPA) where Laravel handles REST API requests and Sanctum session tokens, while Vue 3 and Vue Router manage client-side state and navigation.
+2.  **Role-Based Security**: The access model defines two roles (`admin` and standard user). Only administrators can create/modify workspaces, create teams, and manage standard user accounts.
+3.  **Workspace Constraints**: Normal users can only view and interact with tasks, teams, and members assigned to the same workspace as their own profile.
+4.  **Task Allocation limits**: A task must always have at least one assignee and can have up to a maximum of 5 concurrent assignees, all of whom must belong to the task's parent workspace.
+5.  **Local Storage and Notification Delivery**: Notifications are handled via database tables and log queues. Standard configuration assumes log-based mailers and sync queue drivers for local execution.
+
+---
+
+## Challenges Encountered
+
+*   **Experienced difficulties when committing changes across multiple branches**: Managing concurrent feature streams resulted in coordination overhead when keeping local, upstream, and remote branches synchronized.
+*   **Encountered challenges integrating the agreed-upon application theme and styling**: Harmonizing the styling requirements and ensuring consistent UI components across all views proved challenging during development.
+*   **Had to rebuild parts of the backend after merge conflicts and integration issues during development**: Resolving overlapping changes on backend APIs required restructuring and refactoring controller actions after resolving git merge conflicts.
