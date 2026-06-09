@@ -79,7 +79,13 @@ const handleDrop = async (e, columnId) => {
 const handleCardClick = (task) => {
   if (canEditTask(task)) {
     openEditModal(task)
+    return
   }
+
+  addToast({
+    message: 'You can only open tasks assigned to you or created by you.',
+    type: 'error'
+  })
 }
 
 const handleTaskDelete = async (task) => {

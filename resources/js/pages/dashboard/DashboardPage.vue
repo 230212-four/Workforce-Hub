@@ -83,7 +83,13 @@ const handleToggleComplete = async (e, taskId) => {
 const handleRowClick = (task) => {
   if (canEditTask(task)) {
     openEditModal(task)
+    return
   }
+
+  addToast({
+    message: 'You can only open tasks assigned to you or created by you.',
+    type: 'error'
+  })
 }
 
 const getPriorityClass = (priority) => {

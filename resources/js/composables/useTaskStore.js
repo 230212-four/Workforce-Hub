@@ -14,6 +14,7 @@ const isLoadingTasks = ref(false)
 const isLoadingWorkspaces = ref(false)
 const isLoadingUsers = ref(false)
 const isLoadingTeams = ref(false)
+const MAX_TASK_ASSIGNEES = 5
 
 const statusLabels = {
   todo: 'TO DO',
@@ -108,20 +109,20 @@ function resolveWorkspaceIdFromUser(user) {
   return user?.workspaceId ?? user?.workspace_id ?? user?.workspace?.id ?? null
 }
 
-function canUserModifyTask(task, userId, isAdmin) {
+function canUserModifyTask(task, userId) {
   if (!task || !userId) return false
 
   const isAssigned = Array.isArray(task.assignedUsers)
     && task.assignedUsers.some(user => user.id === userId)
 
-  return task.createdByUserId === userId && isAssigned
+  return isAssigned
 }
 
 function canUserDeleteTask(task, userId) {
   const isAssigned = Array.isArray(task?.assignedUsers)
     && task.assignedUsers.some(user => user.id === userId)
 
-  return Boolean(task && userId && task.createdByUserId === userId && isAssigned)
+  return Boolean(task && userId && isAssigned)
 }
 
 function toTaskPayload(payload) {
@@ -297,7 +298,7 @@ async function toggleComplete(taskId) {
   const task = tasks.value.find(item => item.id === taskId)
   if (!task) return null
 
-  if (!canUserModifyTask(task, currentUser.value.id, isAdmin.value)) {
+  if (!canUserModifyTask(task, currentUser.value.id)) {
     throw new Error('You are not allowed to update this task.')
   }
 
@@ -311,7 +312,7 @@ async function moveTask(taskId, newStatus) {
   const { currentUser, isAdmin } = useAuth()
   const localTask = tasks.value.find(item => item.id === taskId)
 
-  if (localTask && !canUserModifyTask(localTask, currentUser.value.id, isAdmin.value)) {
+  if (localTask && !canUserModifyTask(localTask, currentUser.value.id)) {
     throw new Error('You are not allowed to move this task.')
   }
 
@@ -423,7 +424,7 @@ export function useTaskStore() {
 
   function canEditTask(task) {
     if (!task || !currentUser.value.id) return false
-    return task.createdByUserId === currentUser.value.id && isTaskAssignedToCurrentUser(task)
+    return isTaskAssignedToCurrentUser(task)
   }
 
   function canMoveTask(task) {
@@ -433,7 +434,7 @@ export function useTaskStore() {
   function canDeleteTask(task) {
     if (!task || !currentUser.value.id) return false
 
-    return task.createdByUserId === currentUser.value.id
+    return isTaskAssignedToCurrentUser(task)
   }
 
   function getCurrentWorkspaceId() {

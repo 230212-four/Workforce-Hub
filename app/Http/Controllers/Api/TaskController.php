@@ -16,6 +16,7 @@ use App\Services\NotificationService;
 class TaskController extends Controller
 {
     private const ALLOWED_STATUSES = ['todo', 'in-progress', 'review', 'done'];
+    private const MAX_ASSIGNEES = 5;
 
     public function index(Request $request)
     {
@@ -60,17 +61,15 @@ class TaskController extends Controller
 
         if ($isAdmin) {
             $assigneeValidated = $request->validate([
-                'assignee_ids' => ['required', 'array', 'min:1'],
+                'assignee_ids' => ['required', 'array', 'min:1', 'max:' . self::MAX_ASSIGNEES],
                 'assignee_ids.*' => [
                     'distinct',
                     Rule::exists('users', 'id')->where(fn ($query) => $query->where('workspace_id', $workspaceId)),
                 ],
             ]);
 
-            $assigneeIds = collect($assigneeValidated['assignee_ids'])->map(fn ($id) => (int) $id)->unique()->values()->all();
+            $assigneeIds = $this->finalizeAssigneeIds($assigneeValidated['assignee_ids'], $user->id, $workspaceId);
         }
-
-        $assigneeIds = array_values(array_unique([...$assigneeIds, $user->id]));
 
         $status = $validated['status'] ?? 'todo';
         $isCompleted = ($validated['completed'] ?? false) || $status === 'done';
@@ -174,7 +173,7 @@ class TaskController extends Controller
 
         if ($user->role === 'admin' && array_key_exists('assignee_ids', $validated)) {
             $request->validate([
-                'assignee_ids' => ['required', 'array', 'min:1'],
+                'assignee_ids' => ['required', 'array', 'min:1', 'max:' . self::MAX_ASSIGNEES],
                 'assignee_ids.*' => [
                     'distinct',
                     Rule::exists('users', 'id')->where(fn ($query) => $query->where('workspace_id', $workspaceId)),
@@ -188,7 +187,7 @@ class TaskController extends Controller
 
         DB::transaction(function () use ($task, $updates, $validated, $user) {
             if ($user->role === 'admin' && array_key_exists('assignee_ids', $validated)) {
-                $assigneeIds = collect($validated['assignee_ids'])->map(fn ($id) => (int) $id)->unique()->values()->all();
+                $assigneeIds = $this->finalizeAssigneeIds($validated['assignee_ids'], $task->created_by_user_id, $task->workspace_id);
                 $task->assignedUsers()->sync($assigneeIds);
                 $updates['assigned_to_user_id'] = $assigneeIds[0] ?? null;
             }
@@ -248,10 +247,9 @@ class TaskController extends Controller
     private function authorizeTaskUpdate(User $user, Task $task): void
     {
         $isAssigned = $task->assignedUsers()->where('users.id', $user->id)->exists();
-        $isCreator = (int) $task->created_by_user_id === (int) $user->id;
 
-        if (! $isAssigned || ! $isCreator) {
-            throw new HttpResponseException(response()->json(['message' => 'You can only update tasks you both created and were assigned to.'], 403));
+        if (! $isAssigned) {
+            throw new HttpResponseException(response()->json(['message' => 'You can only update tasks you are assigned to.'], 403));
         }
     }
 
@@ -281,6 +279,28 @@ class TaskController extends Controller
         }
 
         return (int) $workspaceId;
+    }
+
+    /**
+     * @param  array<int, int|string>  $assigneeIds
+     * @return array<int, int>
+     */
+    private function finalizeAssigneeIds(array $assigneeIds, int $creatorId, int $workspaceId): array
+    {
+        $finalAssigneeIds = collect($assigneeIds)
+            ->map(fn ($id) => (int) $id)
+            ->push($creatorId)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (count($finalAssigneeIds) > self::MAX_ASSIGNEES) {
+            throw ValidationException::withMessages([
+                'assignee_ids' => sprintf('A task can have at most %d assignees.', self::MAX_ASSIGNEES),
+            ]);
+        }
+
+        return $finalAssigneeIds;
     }
 
     private function transformTask(Task $task): array

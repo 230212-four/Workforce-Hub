@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAuth } from '../../composables/useAuth'
 import { useTaskStore } from '../../composables/useTaskStore'
+import { useToast } from '../../composables/useToast'
 
 const props = defineProps({
   isOpen: { type: Boolean, default: false },
@@ -10,8 +11,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'save'])
 
+const { addToast } = useToast()
 const { isAdmin } = useAuth()
 const { loadUsers, getCurrentWorkspaceId, getWorkspaceUsers } = useTaskStore()
+const MAX_TASK_ASSIGNEES = 5
 
 const formData = ref({
   id: '',
@@ -21,6 +24,7 @@ const formData = ref({
   priority: 'medium',
   dueDate: '',
   workspaceId: null,
+  creatorUserId: null,
   assigneeIds: []
 })
 
@@ -41,9 +45,32 @@ const statuses = [
 
 const workspaceId = computed(() => formData.value.workspaceId || getCurrentWorkspaceId())
 const availableUsers = computed(() => getWorkspaceUsers(workspaceId.value))
+const selectedAssigneeCount = computed(() => new Set([
+  ...formData.value.assigneeIds,
+  formData.value.creatorUserId
+]).size)
+const assigneeSlotsLeft = computed(() => Math.max(0, MAX_TASK_ASSIGNEES - selectedAssigneeCount.value))
+const assigneeLimitReached = computed(() => assigneeSlotsLeft.value <= 0)
 const selectedAssignees = computed(() => {
   return availableUsers.value.filter(user => formData.value.assigneeIds.includes(user.id))
 })
+
+const normalizeDueDate = (value) => {
+  if (!value) return ''
+
+  const [year = '', month = '', day = ''] = String(value).split('-')
+  const cleanYear = year.replace(/\D/g, '').slice(0, 4)
+  const cleanMonth = month.replace(/\D/g, '').slice(0, 2)
+  const cleanDay = day.replace(/\D/g, '').slice(0, 2)
+
+  return [cleanYear, cleanMonth, cleanDay].filter(Boolean).join('-')
+}
+
+const handleDueDateInput = (event) => {
+  const nextValue = normalizeDueDate(event.target.value)
+  event.target.value = nextValue
+  formData.value.dueDate = nextValue
+}
 
 watch(() => props.task, (newTask) => {
   if (!newTask) return
@@ -56,6 +83,7 @@ watch(() => props.task, (newTask) => {
     priority: newTask.priority || 'medium',
     dueDate: newTask.dueDate || '',
     workspaceId: newTask.workspaceId || newTask.workspace_id || null,
+    creatorUserId: newTask.createdByUserId || newTask.created_by_user_id || null,
     assigneeIds: newTask.assignedUsers?.length
       ? newTask.assignedUsers.map(user => user.id)
       : (newTask.assignedUserIds || [])
@@ -72,6 +100,17 @@ const addAssignee = () => {
 
   const userId = Number(selectedAssigneeId.value)
   if (!formData.value.assigneeIds.includes(userId)) {
+    const nextAssigneeCount = new Set([
+      ...formData.value.assigneeIds,
+      userId,
+      formData.value.creatorUserId
+    ]).size
+
+    if (nextAssigneeCount > MAX_TASK_ASSIGNEES) {
+      addToast({ message: `A task can have at most ${MAX_TASK_ASSIGNEES} members.`, type: 'error' })
+      return
+    }
+
     formData.value.assigneeIds.push(userId)
   }
 
@@ -84,6 +123,11 @@ const removeAssignee = (userId) => {
 
 const handleSubmit = () => {
   if (!formData.value.title.trim()) return
+
+  if (selectedAssigneeCount.value > MAX_TASK_ASSIGNEES) {
+    addToast({ message: `A task can have at most ${MAX_TASK_ASSIGNEES} members.`, type: 'error' })
+    return
+  }
 
   emit('save', {
     ...formData.value,
@@ -182,6 +226,8 @@ const handleSubmit = () => {
             <input
               v-model="formData.dueDate"
               type="date"
+              max="9999-12-31"
+              @input="handleDueDateInput"
               class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none focus:shadow-[3px_3px_0_0_var(--shadow-color)]"
             />
           </div>
@@ -192,6 +238,7 @@ const handleSubmit = () => {
               <select
                 v-model="selectedAssigneeId"
                 class="neo-select w-full"
+                :disabled="assigneeLimitReached"
               >
                 <option value="">Add a Member</option>
                 <option v-for="user in availableUsers" :key="user.id" :value="user.id">
@@ -200,13 +247,18 @@ const handleSubmit = () => {
               </select>
               <button
                 type="button"
-                class="w-10 h-10 brut-border bg-neoCard font-black text-ink brut-hover"
+                class="w-10 h-10 brut-border bg-neoCard font-black text-ink brut-hover disabled:opacity-40 disabled:cursor-not-allowed"
                 @click="addAssignee"
                 aria-label="Add assignee"
+                :disabled="assigneeLimitReached"
               >
                 +
               </button>
             </div>
+
+            <p class="mt-2 text-[0.6rem] font-black uppercase tracking-wide text-neoMuted">
+              {{ assigneeSlotsLeft }} member{{ assigneeSlotsLeft === 1 ? '' : 's' }} left before the 5-member limit.
+            </p>
 
             <div class="mt-3 flex flex-wrap gap-2">
               <span
