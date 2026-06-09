@@ -24,6 +24,7 @@ const {
   userInProgressTasks,
   userOverdueTasks,
   userCompletionRate,
+  isLoadingTasks,
   toggleComplete,
   canEditTask,
   canMoveTask,
@@ -149,58 +150,86 @@ const getStatusLabel = (status) => {
       </div>
     </div>
 
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard title="Total" :count="displayTotal" colorClass="bg-neoCard" :period="statsPeriod" />
-      <StatsCard title="Completed" :count="displayCompleted" colorClass="bg-neoMint" :period="statsPeriod" />
-      <StatsCard title="In Progress" :count="displayInProgress" colorClass="bg-neoYellow" :period="statsPeriod" />
-      <StatsCard title="Overdue" :count="displayOverdue" colorClass="bg-neoPink" :period="statsPeriod" />
-    </div>
-
-    <div v-if="recentTasks.length === 0" class="brut-border brut-shadow bg-neoCard p-5 text-center">
-      <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No tasks yet</p>
-    </div>
-
-    <!-- Recent Tasks -->
-    <div v-else class="brut-border brut-shadow bg-neoCard p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-black text-ink">Recent Tasks</h2>
-        <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ recentTasks.length }} ITEMS</span>
-      </div>
-
-      <div>
-        <div
-          v-for="task in recentTasks"
-          :key="task.id"
-          @click="handleRowClick(task)"
-          :class="['task-row', task.completed ? 'completed' : '']"
-        >
-          <!-- Check Circle -->
-          <button
-            @click="handleToggleComplete($event, task.id)"
-            :class="['check-circle mr-4', task.completed ? 'checked' : '']"
-          >
-            <svg v-if="task.completed" class="w-3.5 h-3.5 text-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
-              <polyline points="20,6 9,17 4,12" />
-            </svg>
-          </button>
-
-          <!-- Task Info -->
-          <div class="flex-1 min-w-0 mr-4">
-            <p class="task-title text-sm font-bold text-ink leading-tight">{{ task.title }}</p>
-            <p class="text-[0.65rem] font-bold text-neoMuted uppercase tracking-wide mt-0.5">
-              {{ getStatusLabel(task.status) }}
-              <span v-if="task.dueDate" class="ml-1">· DUE {{ task.dueDate }}</span>
-              <span v-if="isAdmin && task.assigneeSummary" class="ml-1">· {{ task.assigneeSummary }}</span>
-            </p>
-          </div>
-
-          <!-- Priority Badge -->
-          <span :class="getPriorityClass(task.priority)" class="flex-shrink-0">
-            {{ task.priority.toUpperCase() }}
-          </span>
+    <!-- Loading Skeleton -->
+    <template v-if="isLoadingTasks">
+      <!-- Skeleton Stats -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div v-for="i in 4" :key="i" class="brut-border brut-shadow bg-neoCard p-5 animate-pulse">
+          <div class="h-3 w-20 bg-neoBorder/20 rounded mb-4"></div>
+          <div class="h-10 w-16 bg-neoBorder/20 rounded mb-3"></div>
+          <div class="h-2 w-full bg-neoBorder/10 rounded mb-2"></div>
+          <div class="h-3 w-24 bg-neoBorder/20 rounded"></div>
         </div>
       </div>
-    </div>
+
+      <!-- Skeleton Task List -->
+      <div class="brut-border brut-shadow bg-neoCard p-5">
+        <div class="h-5 w-32 bg-neoBorder/20 rounded mb-4"></div>
+        <div v-for="i in 5" :key="i" class="flex items-center py-4 border-b border-neoBorder/10 last:border-0 animate-pulse">
+          <div class="w-6 h-6 rounded-full bg-neoBorder/20 mr-4 flex-shrink-0"></div>
+          <div class="flex-1">
+            <div class="h-4 w-3/5 bg-neoBorder/20 rounded mb-2"></div>
+            <div class="h-3 w-2/5 bg-neoBorder/15 rounded"></div>
+          </div>
+          <div class="h-5 w-14 bg-neoBorder/20 rounded flex-shrink-0"></div>
+        </div>
+      </div>
+    </template>
+
+    <template v-else>
+      <!-- Stats Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard title="Total" :count="displayTotal" colorClass="bg-neoCard" :period="statsPeriod" />
+        <StatsCard title="Completed" :count="displayCompleted" colorClass="bg-neoMint" :period="statsPeriod" />
+        <StatsCard title="In Progress" :count="displayInProgress" colorClass="bg-neoYellow" :period="statsPeriod" />
+        <StatsCard title="Overdue" :count="displayOverdue" colorClass="bg-neoPink" :period="statsPeriod" />
+      </div>
+
+      <div v-if="recentTasks.length === 0" class="brut-border brut-shadow bg-neoCard p-5 text-center">
+        <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No tasks yet</p>
+      </div>
+
+      <!-- Recent Tasks -->
+      <div v-else class="brut-border brut-shadow bg-neoCard p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-black text-ink">Recent Tasks</h2>
+          <span class="text-xs font-black uppercase tracking-wider text-neoMuted">{{ recentTasks.length }} ITEMS</span>
+        </div>
+
+        <div>
+          <div
+            v-for="task in recentTasks"
+            :key="task.id"
+            @click="handleRowClick(task)"
+            :class="['task-row', task.completed ? 'completed' : '']"
+          >
+            <!-- Check Circle -->
+            <button
+              @click="handleToggleComplete($event, task.id)"
+              :class="['check-circle mr-4', task.completed ? 'checked' : '']"
+            >
+              <svg v-if="task.completed" class="w-3.5 h-3.5 text-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
+                <polyline points="20,6 9,17 4,12" />
+              </svg>
+            </button>
+
+            <!-- Task Info -->
+            <div class="flex-1 min-w-0 mr-4">
+              <p class="task-title text-sm font-bold text-ink leading-tight">{{ task.title }}</p>
+              <p class="text-[0.65rem] font-bold text-neoMuted uppercase tracking-wide mt-0.5">
+                {{ getStatusLabel(task.status) }}
+                <span v-if="task.dueDate" class="ml-1">· DUE {{ task.dueDate }}</span>
+                <span v-if="isAdmin && task.assigneeSummary" class="ml-1">· {{ task.assigneeSummary }}</span>
+              </p>
+            </div>
+
+            <!-- Priority Badge -->
+            <span :class="getPriorityClass(task.priority)" class="flex-shrink-0">
+              {{ task.priority.toUpperCase() }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>

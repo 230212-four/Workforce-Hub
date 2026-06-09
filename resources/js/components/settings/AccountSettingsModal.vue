@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import axios from 'axios'
 import { useToast } from '../../composables/useToast'
 
 const props = defineProps({
@@ -15,11 +16,12 @@ const currentPassword = ref('')
 const newPassword      = ref('')
 const confirmPassword  = ref('')
 const error            = ref('')
+const isSaving         = ref(false)
 
 // ── Validation ──────────────────────────────────────────────────────────────
 const isValid = computed(() =>
   currentPassword.value.trim().length > 0 &&
-  newPassword.value.trim().length > 0 &&
+  newPassword.value.trim().length >= 8 &&
   confirmPassword.value.trim().length > 0
 )
 
@@ -28,6 +30,7 @@ const reset = () => {
   newPassword.value      = ''
   confirmPassword.value  = ''
   error.value            = ''
+  isSaving.value         = false
 }
 
 const close = () => {
@@ -35,15 +38,15 @@ const close = () => {
   emit('close')
 }
 
-const saveChanges = () => {
+const saveChanges = async () => {
   error.value = ''
 
   if (!currentPassword.value.trim()) {
     error.value = 'Current password is required.'
     return
   }
-  if (newPassword.value.length < 6) {
-    error.value = 'New password must be at least 6 characters.'
+  if (newPassword.value.length < 8) {
+    error.value = 'New password must be at least 8 characters.'
     return
   }
   if (newPassword.value !== confirmPassword.value) {
@@ -51,9 +54,26 @@ const saveChanges = () => {
     return
   }
 
-  // ── Mock success ─────────────────────────────────────────────────────────
-  addToast({ message: 'PASSWORD UPDATED', type: 'success', duration: 3500 })
-  close()
+  isSaving.value = true
+  try {
+    await axios.put('/api/me/password', {
+      current_password: currentPassword.value,
+      password: newPassword.value,
+      password_confirmation: confirmPassword.value
+    })
+    addToast({ message: 'PASSWORD UPDATED', type: 'success', duration: 3500 })
+    close()
+  } catch (err) {
+    const serverErrors = err?.response?.data?.errors
+    if (serverErrors) {
+      const firstKey = Object.keys(serverErrors)[0]
+      error.value = serverErrors[firstKey]?.[0] || 'Unable to change password.'
+    } else {
+      error.value = err?.response?.data?.message || 'Unable to change password.'
+    }
+  } finally {
+    isSaving.value = false
+  }
 }
 </script>
 
@@ -61,7 +81,7 @@ const saveChanges = () => {
   <transition name="modal">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
       @click.self="close"
     >
       <div
@@ -133,7 +153,7 @@ const saveChanges = () => {
               type="password"
               id="new-password"
               class="w-full px-3 py-2.5 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none focus:shadow-[3px_3px_0_0_var(--shadow-color)]"
-              placeholder="Minimum 6 characters"
+              placeholder="Minimum 8 characters"
               autocomplete="new-password"
             />
           </div>
@@ -166,7 +186,7 @@ const saveChanges = () => {
           <div class="bg-neoYellow/20 brut-border p-3 flex items-start gap-2">
             <span class="text-sm flex-shrink-0">💡</span>
             <p class="text-xs font-bold text-ink">
-              Use at least <span class="font-black">6 characters</span>, mixing letters, numbers, and symbols for a strong password.
+              Use at least <span class="font-black">8 characters</span>, mixing uppercase, lowercase, numbers, and symbols for a strong password.
             </p>
           </div>
         </div>
@@ -182,10 +202,10 @@ const saveChanges = () => {
           <button
             id="save-password-btn"
             @click="saveChanges"
-            :disabled="!isValid"
+            :disabled="!isValid || isSaving"
             class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-neoCard bg-ink brut-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Save Changes
+            {{ isSaving ? 'Saving...' : 'Save Changes' }}
           </button>
         </div>
       </div>

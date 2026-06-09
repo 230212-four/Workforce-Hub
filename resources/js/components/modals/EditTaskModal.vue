@@ -14,6 +14,7 @@ const emit = defineEmits(['close', 'save'])
 
 const { addToast } = useToast()
 const { isAdmin } = useAuth()
+const isSubmitting = ref(false)
 const { loadUsers, getCurrentWorkspaceId, getWorkspaceUsers } = useTaskStore()
 const MAX_TASK_ASSIGNEES = 5
 
@@ -151,7 +152,7 @@ const handleSubmit = () => {
   <transition name="modal">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[100] w-full h-full bg-black/50 flex items-center justify-center"
+      class="fixed inset-0 z-[9999] w-full h-full bg-black/50 flex items-center justify-center"
       @click.self="$emit('close')"
     >
       <div
@@ -343,9 +344,10 @@ const handleSubmit = () => {
           </button>
           <button
             @click="handleSubmit"
-            class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer"
+            :disabled="isSubmitting"
+            class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Save Changes
+            {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
           </button>
         </div>
       </div>

@@ -20,6 +20,19 @@ class NotificationController extends Controller
         return response()->json(['data' => $notifications]);
     }
 
+    public function markAllRead(Request $request)
+    {
+        $count = SystemNotification::query()
+            ->where('user_id', $request->user()->id)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return response()->json([
+            'message' => 'All notifications marked as read.',
+            'count' => $count,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $this->ensureAdmin($request);

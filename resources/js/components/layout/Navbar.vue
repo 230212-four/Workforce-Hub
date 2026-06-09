@@ -95,7 +95,7 @@ onBeforeUnmount(() => {
       <div class="hidden md:flex items-center gap-2">
         <span class="text-xs font-black uppercase tracking-wider text-neoMuted">Workspace</span>
         <span class="text-xs text-neoMuted">/</span>
-        <span class="text-xs font-black uppercase tracking-wider text-ink">Current Workspace</span>
+        <span class="text-xs font-black uppercase tracking-wider text-ink">{{ currentUser?.workspace?.name || 'No Workspace' }}</span>
       </div>
 
       <!-- Mobile logo fallback (shown when hamburger present) -->

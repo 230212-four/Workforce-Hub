@@ -1,17 +1,67 @@
 <script setup>
-import { ref, inject } from 'vue'
+import { ref, onMounted } from 'vue'
+import axios from 'axios'
 import { useDarkMode } from '../../composables/useDarkMode'
+import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
 
 const { isDarkMode, toggleDarkMode } = useDarkMode()
+const { currentUser } = useAuth()
 const { addToast } = useToast()
 
-const simulateError = () => {
-  addToast({
-    message: 'Connection failed — could not save settings.',
-    type: 'error',
-    duration: 5000
-  })
+const isSaving = ref(false)
+
+const timezoneOptions = ['UTC', 'EST', 'CST', 'PST', 'GMT', 'CET', 'IST', 'JST', 'AEST']
+const languageOptions = [
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' }
+]
+
+// ── Preferences state ──
+const timezone = ref('UTC')
+const language = ref('en')
+const emailNotif = ref(true)
+const pushNotif = ref(true)
+const taskUpdates = ref(true)
+
+function loadFromUser() {
+  const prefs = currentUser.value?.preferences || {}
+  timezone.value = prefs.timezone || 'UTC'
+  language.value = prefs.language || 'en'
+  emailNotif.value = prefs.notifications?.email ?? true
+  pushNotif.value = prefs.notifications?.push ?? true
+  taskUpdates.value = prefs.notifications?.task_updates ?? true
+}
+
+onMounted(() => {
+  loadFromUser()
+})
+
+const savePreferences = async () => {
+  isSaving.value = true
+  try {
+    await axios.put('/api/me/preferences', {
+      timezone: timezone.value,
+      language: language.value,
+      notifications: {
+        email: emailNotif.value,
+        push: pushNotif.value,
+        task_updates: taskUpdates.value
+      }
+    })
+    addToast({ message: 'Preferences saved.', type: 'success' })
+  } catch (error) {
+    addToast({ message: error?.response?.data?.message || 'Unable to save preferences.', type: 'error' })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+const cancelChanges = () => {
+  loadFromUser()
+  addToast({ message: 'Changes reverted.', type: 'info', duration: 2000 })
 }
 </script>
 
@@ -52,20 +102,14 @@ const simulateError = () => {
         <div class="space-y-4">
           <div>
             <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Timezone</label>
-            <select class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none">
-              <option>UTC</option>
-              <option>EST</option>
-              <option>CST</option>
-              <option>PST</option>
+            <select v-model="timezone" class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none">
+              <option v-for="tz in timezoneOptions" :key="tz" :value="tz">{{ tz }}</option>
             </select>
           </div>
           <div>
             <label class="block text-xs font-black text-ink uppercase tracking-wide mb-1.5">Language</label>
-            <select class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none">
-              <option>English</option>
-              <option>Spanish</option>
-              <option>French</option>
-              <option>German</option>
+            <select v-model="language" class="w-full px-3 py-2 brut-border font-semibold text-ink bg-neoCard text-sm focus:outline-none">
+              <option v-for="lang in languageOptions" :key="lang.value" :value="lang.value">{{ lang.label }}</option>
             </select>
           </div>
         </div>
@@ -76,42 +120,32 @@ const simulateError = () => {
         <h2 class="text-sm font-black uppercase tracking-wider text-ink mb-5">Notifications</h2>
         <div class="space-y-3">
           <div class="flex items-center">
-            <input type="checkbox" id="email-notif" checked class="w-4 h-4 brut-border bg-neoCard accent-neoIndigo" />
+            <input type="checkbox" id="email-notif" v-model="emailNotif" class="w-4 h-4 brut-border bg-neoCard accent-neoIndigo" />
             <label for="email-notif" class="ml-3 text-sm font-semibold text-ink normal-case tracking-normal">Email Notifications</label>
           </div>
           <div class="flex items-center">
-            <input type="checkbox" id="push-notif" checked class="w-4 h-4 brut-border bg-neoCard accent-neoIndigo" />
+            <input type="checkbox" id="push-notif" v-model="pushNotif" class="w-4 h-4 brut-border bg-neoCard accent-neoIndigo" />
             <label for="push-notif" class="ml-3 text-sm font-semibold text-ink normal-case tracking-normal">Push Notifications</label>
           </div>
-        <div class="flex items-center">
-            <input type="checkbox" id="task-notif" checked class="w-4 h-4 brut-border bg-neoCard accent-neoIndigo" />
+          <div class="flex items-center">
+            <input type="checkbox" id="task-notif" v-model="taskUpdates" class="w-4 h-4 brut-border bg-neoCard accent-neoIndigo" />
             <label for="task-notif" class="ml-3 text-sm font-semibold text-ink normal-case tracking-normal">Task Updates</label>
-          </div>
-        </div>
-
-        <!-- Error Toast Demo -->
-        <div class="mt-5 pt-5 brut-border border-l-0 border-r-0 border-b-0">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h3 class="font-bold text-ink text-sm">Error State Demo</h3>
-              <p class="text-xs text-neoMuted mt-0.5">Simulate a failed server action to preview the error toast notification.</p>
-            </div>
-            <button
-              id="simulate-error-btn"
-              @click="simulateError"
-              class="flex-shrink-0 px-4 py-2 brut-border font-black text-xs uppercase tracking-wide text-white bg-red-600 border-ink shadow-[3px_3px_0_0_#1a1a1a] hover:shadow-[5px_5px_0_0_#1a1a1a] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all cursor-pointer"
-            >
-              ⚠ Simulate Error
-            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Save Button -->
+    <!-- Save / Cancel Buttons -->
     <div class="flex justify-end gap-3">
-      <button class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30">Cancel</button>
-      <button class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer">Save Changes</button>
+      <button
+        @click="cancelChanges"
+        class="px-5 py-2 brut-border font-black text-xs uppercase tracking-wide text-ink bg-neoCard brut-hover cursor-pointer hover:bg-neoPink/30"
+      >Cancel</button>
+      <button
+        @click="savePreferences"
+        :disabled="isSaving"
+        class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+      >{{ isSaving ? 'Saving...' : 'Save Changes' }}</button>
     </div>
   </div>
 </template>

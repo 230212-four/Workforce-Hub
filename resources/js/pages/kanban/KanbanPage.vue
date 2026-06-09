@@ -1,6 +1,7 @@
 <script setup>
 import { ref, inject, computed, nextTick } from 'vue'
 import KanbanTaskCard from '../../components/kanban/KanbanTaskCard.vue'
+import ConfirmModal from '../../components/ui/ConfirmModal.vue'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useAuth } from '../../composables/useAuth'
 import { useToast } from '../../composables/useToast'
@@ -19,6 +20,7 @@ const {
   canMoveTask,
   teams,
   members,
+  isLoadingTasks,
   getFilteredColumns,
   getUserColumns
 } = useTaskStore()
@@ -67,15 +69,6 @@ const handleDrop = async (e, columnId) => {
   const taskId = e.dataTransfer.getData('text/plain')
   const task = tasks.value.find(item => String(item.id) === String(taskId))
   if (taskId && task && canMoveTask(task)) {
-    // Double-check permission on drop side too
-    if (!isAdmin.value && task.assignedTo !== currentUser.value.name) {
-      addToast({
-        message: 'Permission Denied: You can only move your own tasks.',
-        type: 'error'
-      })
-      dragOverColumn.value = null
-      return
-    }
     try {
       await moveTask(task.id, columnId)
       addToast({ message: 'Task status updated.', type: 'success' })
@@ -133,7 +126,7 @@ const bulkArchive = async () => {
 const bulkReassign = async () => {
   const promises = []
   selectedCards.value.forEach(taskId => {
-    promises.push(updateTask(taskId, { assignedTo: currentUser.value.name }))
+    promises.push(updateTask(taskId, { assignee_ids: [currentUser.value.id] }))
   })
   try {
     await Promise.all(promises)
@@ -146,15 +139,21 @@ const bulkReassign = async () => {
 
 const hasSelection = computed(() => selectedCards.value.size > 0)
 
-// ── Task deletion (from develop) ──
-const handleTaskDelete = async (task) => {
-  if (!canDeleteTask(task)) {
-    return
-  }
+// ── Task deletion with ConfirmModal ──
+const showDeleteConfirm = ref(false)
+const pendingDeleteTask = ref(null)
 
-  if (!window.confirm(`Delete task "${task.title}"? This action cannot be undone.`)) {
-    return
-  }
+const handleTaskDelete = (task) => {
+  if (!canDeleteTask(task)) return
+  pendingDeleteTask.value = task
+  showDeleteConfirm.value = true
+}
+
+const confirmDelete = async () => {
+  const task = pendingDeleteTask.value
+  showDeleteConfirm.value = false
+  pendingDeleteTask.value = null
+  if (!task) return
 
   try {
     await deleteTask(task.id)
@@ -162,6 +161,11 @@ const handleTaskDelete = async (task) => {
   } catch (error) {
     addToast({ message: error?.message || 'Unable to delete the task.', type: 'error' })
   }
+}
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  pendingDeleteTask.value = null
 }
 
 // ── Keyboard-driven column movement ──
@@ -325,11 +329,27 @@ const getColumnBodyBg = (colId) => {
       </div>
     </div>
 
+    <!-- Kanban Columns -->
+    <div v-if="isLoadingTasks" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div v-for="i in 4" :key="i" class="flex flex-col">
+        <div class="brut-border brut-shadow p-3.5 bg-neoCard animate-pulse">
+          <div class="h-3 w-24 bg-neoBorder/20 rounded"></div>
+        </div>
+        <div class="brut-border p-3 space-y-3 flex-1 bg-neoCard/50" style="border-top: none;">
+          <div v-for="j in 2" :key="j" class="brut-border bg-neoCard p-3.5 animate-pulse">
+            <div class="h-4 w-3/4 bg-neoBorder/20 rounded mb-3"></div>
+            <div class="h-3 w-1/2 bg-neoBorder/20 rounded mb-2"></div>
+            <div class="h-3 w-1/3 bg-neoBorder/20 rounded"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Kanban Columns
          Mobile:  horizontal scroll with snap — each column ~88vw wide
          Desktop: standard 4-column grid
     -->
-    <div class="flex flex-nowrap overflow-x-auto gap-4 snap-x snap-mandatory pb-4 md:grid md:grid-cols-2 md:flex-wrap md:overflow-x-visible lg:grid-cols-4 -mx-1 px-1">
+    <div v-else class="flex flex-nowrap overflow-x-auto gap-4 snap-x snap-mandatory pb-4 md:grid md:grid-cols-2 md:flex-wrap md:overflow-x-visible lg:grid-cols-4 -mx-1 px-1">
       <div v-if="!hasTasks" class="col-span-full brut-border brut-shadow bg-neoCard p-6 text-center">
         <p class="text-xs font-black uppercase tracking-wider text-neoMuted">No tasks available</p>
       </div>
@@ -388,5 +408,16 @@ const getColumnBodyBg = (colId) => {
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmModal
+      :isOpen="showDeleteConfirm"
+      title="Delete Task"
+      :message="`Are you sure you want to delete &quot;${pendingDeleteTask?.title}&quot;? This action cannot be undone.`"
+      confirmLabel="Delete"
+      variant="danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>

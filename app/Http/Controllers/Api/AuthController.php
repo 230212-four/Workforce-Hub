@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -38,16 +39,14 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $plainToken = Str::random(80);
-        $user->forceFill([
-            'api_token_hash' => hash('sha256', $plainToken),
-            'last_login_at' => now(),
-        ])->save();
+        $user->forceFill(['last_login_at' => now()])->save();
+
+        $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
             'message' => 'Login successful.',
             'token_type' => 'Bearer',
-            'token' => $plainToken,
+            'token' => $token,
             'user' => $user->load(['workspace', 'team']),
         ]);
     }
@@ -73,11 +72,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $user = $request->user();
-
-        if ($user) {
-            $user->forceFill(['api_token_hash' => null])->save();
-        }
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out.']);
     }
@@ -86,6 +81,68 @@ class AuthController extends Controller
     {
         return response()->json([
             'user' => $request->user()->load(['workspace', 'team']),
+        ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => ['sometimes', 'required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'phone' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $user->update($validated);
+
+        return response()->json([
+            'message' => 'Profile updated.',
+            'user' => $user->fresh()->load(['workspace', 'team']),
+        ]);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
+        ]);
+
+        $user = $request->user();
+
+        if (! Hash::check($validated['current_password'], $user->password)) {
+            return response()->json([
+                'message' => 'The current password is incorrect.',
+                'errors' => ['current_password' => ['The current password is incorrect.']],
+            ], 422);
+        }
+
+        $user->update(['password' => $validated['password']]);
+
+        return response()->json(['message' => 'Password updated.']);
+    }
+
+    public function updatePreferences(Request $request)
+    {
+        $validated = $request->validate([
+            'timezone' => ['sometimes', 'string', 'max:64'],
+            'language' => ['sometimes', 'string', 'max:10'],
+            'notifications' => ['sometimes', 'array'],
+            'notifications.email' => ['sometimes', 'boolean'],
+            'notifications.push' => ['sometimes', 'boolean'],
+            'notifications.task_updates' => ['sometimes', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $current = $user->preferences ?? [];
+        $merged = array_replace_recursive($current, $validated);
+
+        $user->update(['preferences' => $merged]);
+
+        return response()->json([
+            'message' => 'Preferences updated.',
+            'preferences' => $merged,
         ]);
     }
 }

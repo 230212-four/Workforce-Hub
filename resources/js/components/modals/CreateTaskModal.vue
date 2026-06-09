@@ -14,6 +14,7 @@ const { addToast } = useToast()
 const { isAdmin, currentUser } = useAuth()
 const { loadUsers, getCurrentWorkspaceId, getWorkspaceUsers } = useTaskStore()
 const MAX_TASK_ASSIGNEES = 5
+const isSubmitting = ref(false)
 
 const formData = ref({
   title: '',
@@ -159,7 +160,7 @@ const handleSubmit = () => {
   <transition name="modal">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[100] w-full h-full bg-black/50 flex items-center justify-center"
+      class="fixed inset-0 z-[9999] w-full h-full bg-black/50 flex items-center justify-center"
       @click.self="$emit('close')"
     >
       <div
@@ -308,7 +309,7 @@ const handleSubmit = () => {
             </div>
           </div>
 
-          <div v-else class="brut-border bg-white/60 p-3">
+          <div v-else class="brut-border bg-neoCard/60 p-3">
             <p class="text-[0.65rem] font-black uppercase tracking-wide text-neoMuted">
               This task will stay in your workspace.
             </p>
@@ -324,9 +325,10 @@ const handleSubmit = () => {
           </button>
           <button
             @click="handleSubmit"
-            class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer"
+            :disabled="isSubmitting"
+            class="px-5 py-2 brut-border brut-shadow font-black text-xs uppercase tracking-wide text-white bg-ink brut-hover cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Create Task
+            {{ isSubmitting ? 'Creating...' : 'Create Task' }}
           </button>
         </div>
       </div>

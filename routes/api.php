@@ -9,10 +9,13 @@ use App\Http\Controllers\Api\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register', [AuthController::class, 'register']);
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 
-Route::middleware('api.token')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/me', [AuthController::class, 'updateProfile']);
+    Route::put('/me/password', [AuthController::class, 'changePassword']);
+    Route::put('/me/preferences', [AuthController::class, 'updatePreferences']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::middleware('admin.api')->group(function () {
@@ -22,5 +25,7 @@ Route::middleware('api.token')->group(function () {
     });
 
     Route::apiResource('tasks', TaskController::class);
+
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
     Route::apiResource('notifications', NotificationController::class);
 });

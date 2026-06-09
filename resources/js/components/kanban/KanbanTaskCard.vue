@@ -34,16 +34,6 @@ const handleDragStart = (e) => {
     return
   }
 
-  // If user role and task is NOT assigned to them → deny
-  if (!isAdmin.value && props.task.assignedTo !== currentUser.value.name) {
-    e.preventDefault()
-    addToast({
-      message: 'Permission Denied: You can only move your own tasks.',
-      type: 'error'
-    })
-    return
-  }
-
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', props.task.id)
   e.currentTarget.classList.add('kanban-card-dragging')
@@ -91,7 +81,7 @@ const handleKeydown = (e) => {
       <button
         v-if="canDelete"
         type="button"
-        class="w-7 h-7 brut-border bg-white text-ink font-black brut-hover flex-shrink-0"
+        class="w-7 h-7 brut-border bg-neoCard text-ink font-black brut-hover flex-shrink-0"
         title="Delete task"
         @click="handleDelete"
       >

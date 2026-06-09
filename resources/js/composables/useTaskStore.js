@@ -109,8 +109,9 @@ function resolveWorkspaceIdFromUser(user) {
   return user?.workspaceId ?? user?.workspace_id ?? user?.workspace?.id ?? null
 }
 
-function canUserModifyTask(task, userId) {
+function canUserModifyTask(task, userId, isAdmin = false) {
   if (!task || !userId) return false
+  if (isAdmin) return true
 
   const isAssigned = Array.isArray(task.assignedUsers)
     && task.assignedUsers.some(user => user.id === userId)
@@ -118,11 +119,14 @@ function canUserModifyTask(task, userId) {
   return isAssigned
 }
 
-function canUserDeleteTask(task, userId) {
+function canUserDeleteTask(task, userId, isAdmin = false) {
+  if (!task || !userId) return false
+  if (isAdmin) return true
+
   const isAssigned = Array.isArray(task?.assignedUsers)
     && task.assignedUsers.some(user => user.id === userId)
 
-  return Boolean(task && userId && isAssigned)
+  return Boolean(isAssigned)
 }
 
 function toTaskPayload(payload) {
@@ -168,7 +172,8 @@ function toWorkspacePayload(payload) {
   }
 }
 
-async function loadTasks() {
+async function loadTasks(forceRefresh = false) {
+  if (tasksLoaded.value && !forceRefresh) return tasks.value
   if (isLoadingTasks.value) return tasks.value
 
   isLoadingTasks.value = true
@@ -249,8 +254,7 @@ async function loadTeams() {
 }
 
 async function loadInitialData() {
-  await loadTasks()
-  await Promise.all([loadWorkspaces(), loadUsers(), loadTeams()])
+  await Promise.all([loadTasks(), loadWorkspaces(), loadUsers(), loadTeams()])
 }
 
 function requireAdmin() {
@@ -275,17 +279,18 @@ async function updateTask(taskId, payload) {
     throw new Error('You are not allowed to update this task.')
   }
 
-  const { data } = await axios.put(`/api/tasks/${taskId}`, toTaskUpdatePayload(payload))
+  const request = toTaskUpdatePayload(payload)
+  const { data } = await axios.put(`/api/tasks/${taskId}`, request)
   const task = normalizeTask(data.data)
   tasks.value = tasks.value.map(item => (item.id === task.id ? task : item))
   return task
 }
 
 async function deleteTask(taskId) {
-  const { currentUser } = useAuth()
+  const { currentUser, isAdmin } = useAuth()
   const localTask = tasks.value.find(item => item.id === taskId)
 
-  if (localTask && !canUserDeleteTask(localTask, currentUser.value.id)) {
+  if (localTask && !canUserDeleteTask(localTask, currentUser.value.id, isAdmin.value)) {
     throw new Error('You are not allowed to delete this task.')
   }
 
@@ -298,7 +303,7 @@ async function toggleComplete(taskId) {
   const task = tasks.value.find(item => item.id === taskId)
   if (!task) return null
 
-  if (!canUserModifyTask(task, currentUser.value.id)) {
+  if (!canUserModifyTask(task, currentUser.value.id, isAdmin.value)) {
     throw new Error('You are not allowed to update this task.')
   }
 
@@ -312,7 +317,7 @@ async function moveTask(taskId, newStatus) {
   const { currentUser, isAdmin } = useAuth()
   const localTask = tasks.value.find(item => item.id === taskId)
 
-  if (localTask && !canUserModifyTask(localTask, currentUser.value.id)) {
+  if (localTask && !canUserModifyTask(localTask, currentUser.value.id, isAdmin.value)) {
     throw new Error('You are not allowed to move this task.')
   }
 
@@ -321,7 +326,6 @@ async function moveTask(taskId, newStatus) {
     completed: newStatus === 'done'
   })
 
-  await loadTasks()
   return updatedTask
 }
 
@@ -399,7 +403,8 @@ export function useTaskStore() {
   })
 
   const userTasks = computed(() => {
-    return tasks.value
+    if (isAdmin.value) return tasks.value
+    return tasks.value.filter(task => isTaskAssignedToCurrentUser(task))
   })
 
   const userTotalTasks = computed(() => userTasks.value.filter(task => !task.completed).length)
@@ -424,16 +429,18 @@ export function useTaskStore() {
 
   function canEditTask(task) {
     if (!task || !currentUser.value.id) return false
+    if (isAdmin.value) return true
     return isTaskAssignedToCurrentUser(task)
   }
 
   function canMoveTask(task) {
+    if (isAdmin.value) return true
     return canEditTask(task)
   }
 
   function canDeleteTask(task) {
     if (!task || !currentUser.value.id) return false
-
+    if (isAdmin.value) return true
     return isTaskAssignedToCurrentUser(task)
   }
 

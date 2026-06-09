@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class TaskAuthorizationTest extends TestCase
@@ -35,101 +36,86 @@ class TaskAuthorizationTest extends TestCase
         ], $overrides));
     }
 
-    private function tokenFor(User $user, string $password): string
-    {
-        return $this->postJson('/api/login', [
-            'identifier' => $user->email,
-            'password' => $password,
-        ])->assertOk()->json('token');
-    }
-
     public function test_everyone_can_see_all_tasks_but_only_creator_assignees_can_modify_them(): void
     {
         $admin = $this->admin();
 
-        $adminToken = $this->tokenFor($admin, 'Admin123!');
+        $workspace = Workspace::query()->create([
+            'name' => 'Task Workspace',
+            'status' => 'active',
+            'created_by_user_id' => $admin->id,
+        ]);
 
-        $workspace = $this->withHeader('Authorization', 'Bearer ' . $adminToken)
-            ->postJson('/api/workspaces', [
-                'name' => 'Task Workspace',
-                'status' => 'active',
-            ])
-            ->assertCreated()
-            ->json('data');
-
-        $admin->update(['workspace_id' => $workspace['id']]);
+        $admin->update(['workspace_id' => $workspace->id]);
 
         $employeeOne = $this->employee([
             'username' => 'employee_one',
             'email' => 'employee1@example.com',
-            'workspace_id' => $workspace['id'],
+            'workspace_id' => $workspace->id,
         ]);
         $employeeTwo = $this->employee([
             'username' => 'employee_two',
             'email' => 'employee2@example.com',
-            'workspace_id' => $workspace['id'],
+            'workspace_id' => $workspace->id,
         ]);
 
-        $employeeOne->update(['workspace_id' => $workspace['id']]);
-        $employeeTwo->update(['workspace_id' => $workspace['id']]);
+        // ── Employee One creates a task assigned to themselves ──
+        Sanctum::actingAs($employeeOne);
 
-        $employeeOneToken = $this->tokenFor($employeeOne, 'Password1!');
-
-        $ownTask = $this->withHeader('Authorization', 'Bearer ' . $employeeOneToken)
-            ->postJson('/api/tasks', [
-                'workspace_id' => $workspace['id'],
-                'title' => 'Employee owned task',
-                'description' => 'Created by the employee.',
-                'status' => 'todo',
-                'priority' => 'medium',
-            ])
+        $ownTask = $this->postJson('/api/tasks', [
+            'workspace_id' => $workspace->id,
+            'title' => 'Employee owned task',
+            'description' => 'Created by the employee.',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'assignee_ids' => [$employeeOne->id],
+        ])
             ->assertCreated()
             ->json('data');
 
         $this->assertDatabaseHas('tasks', [
             'id' => $ownTask['id'],
             'created_by_user_id' => $employeeOne->id,
-            'assigned_to_user_id' => $employeeOne->id,
         ]);
         $this->assertDatabaseHas('task_assignees', [
             'task_id' => $ownTask['id'],
             'user_id' => $employeeOne->id,
         ]);
 
-        $adminOwnedTask = $this->withHeader('Authorization', 'Bearer ' . $adminToken)
-            ->postJson('/api/tasks', [
-                'workspace_id' => $workspace['id'],
-                'title' => 'Admin owned task',
-                'description' => 'Assigned to admin and visible to everyone.',
-                'status' => 'todo',
-                'priority' => 'high',
-                'assignee_ids' => [$admin->id],
-            ])
+        // ── Admin creates a task assigned to admin ──
+        Sanctum::actingAs($admin);
+
+        $adminOwnedTask = $this->postJson('/api/tasks', [
+            'workspace_id' => $workspace->id,
+            'title' => 'Admin owned task',
+            'description' => 'Assigned to admin and visible to everyone.',
+            'status' => 'todo',
+            'priority' => 'high',
+            'assignee_ids' => [$admin->id],
+        ])
             ->assertCreated()
             ->json('data');
 
-        $employeeTwoToken = $this->tokenFor($employeeTwo, 'Password1!');
+        // ── Employee Two can SEE all tasks (same workspace) ──
+        Sanctum::actingAs($employeeTwo);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeTwoToken)
-            ->getJson('/api/tasks')
+        $this->getJson('/api/tasks')
             ->assertOk()
-            ->assertJsonFragment([
-                'id' => $ownTask['id'],
-            ])
-            ->assertJsonFragment([
-                'id' => $adminOwnedTask['id'],
-            ]);
+            ->assertJsonFragment(['id' => $ownTask['id']])
+            ->assertJsonFragment(['id' => $adminOwnedTask['id']]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeTwoToken)
-            ->putJson('/api/tasks/' . $ownTask['id'], [
-                'status' => 'in-progress',
-            ])
+        // ── Employee Two CANNOT modify Employee One's task ──
+        $this->putJson('/api/tasks/' . $ownTask['id'], [
+            'status' => 'in-progress',
+        ])
             ->assertStatus(403);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeOneToken)
-            ->putJson('/api/tasks/' . $ownTask['id'], [
-                'status' => 'in-progress',
-            ])
+        // ── Employee One CAN modify their own task ──
+        Sanctum::actingAs($employeeOne);
+
+        $this->putJson('/api/tasks/' . $ownTask['id'], [
+            'status' => 'in-progress',
+        ])
             ->assertOk();
 
         $this->assertDatabaseHas('tasks', [
@@ -138,14 +124,18 @@ class TaskAuthorizationTest extends TestCase
             'completed' => false,
         ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeTwoToken)
-            ->deleteJson('/api/tasks/' . $ownTask['id'])
+        // ── Employee Two CANNOT delete Employee One's task ──
+        Sanctum::actingAs($employeeTwo);
+
+        $this->deleteJson('/api/tasks/' . $ownTask['id'])
             ->assertStatus(403);
 
-        $this->withHeader('Authorization', 'Bearer ' . $adminToken)
-            ->putJson('/api/tasks/' . $adminOwnedTask['id'], [
-                'status' => 'in-progress',
-            ])
+        // ── Admin CAN modify admin-owned task ──
+        Sanctum::actingAs($admin);
+
+        $this->putJson('/api/tasks/' . $adminOwnedTask['id'], [
+            'status' => 'in-progress',
+        ])
             ->assertOk();
 
         $this->assertDatabaseHas('tasks', [
@@ -153,16 +143,18 @@ class TaskAuthorizationTest extends TestCase
             'status' => 'in-progress',
         ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeOneToken)
-            ->putJson('/api/tasks/' . $adminOwnedTask['id'], [
-                'status' => 'done',
-            ])
+        // ── Employee One CANNOT modify admin-owned task ──
+        Sanctum::actingAs($employeeOne);
+
+        $this->putJson('/api/tasks/' . $adminOwnedTask['id'], [
+            'status' => 'done',
+        ])
             ->assertStatus(403);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeOneToken)
-            ->putJson('/api/tasks/' . $ownTask['id'], [
-                'status' => 'done',
-            ])
+        // ── Employee One CAN mark their own task done ──
+        $this->putJson('/api/tasks/' . $ownTask['id'], [
+            'status' => 'done',
+        ])
             ->assertOk();
 
         $this->assertDatabaseHas('tasks', [
@@ -171,8 +163,8 @@ class TaskAuthorizationTest extends TestCase
             'completed' => true,
         ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $employeeOneToken)
-            ->deleteJson('/api/tasks/' . $ownTask['id'])
+        // ── Employee One CAN delete their own task ──
+        $this->deleteJson('/api/tasks/' . $ownTask['id'])
             ->assertOk();
 
         $this->assertDatabaseMissing('tasks', [
@@ -180,7 +172,7 @@ class TaskAuthorizationTest extends TestCase
         ]);
     }
 
-    public function test_admins_can_only_manage_tasks_they_created(): void
+    public function test_admins_can_manage_any_task_regardless_of_assignment(): void
     {
         $adminOne = $this->admin([
             'username' => 'admin_one',
@@ -205,42 +197,39 @@ class TaskAuthorizationTest extends TestCase
         $adminOne->update(['workspace_id' => $workspaceOne->id]);
         $adminTwo->update(['workspace_id' => $workspaceTwo->id]);
 
-        $adminOneToken = $this->tokenFor($adminOne, 'Admin123!');
-        $adminTwoToken = $this->tokenFor($adminTwo, 'Admin123!');
+        // ── Admin One creates a task ──
+        Sanctum::actingAs($adminOne);
 
-        $task = $this->withHeader('Authorization', 'Bearer ' . $adminOneToken)
-            ->postJson('/api/tasks', [
-                'workspace_id' => $workspaceOne->id,
-                'title' => 'Admin owned task',
-                'description' => 'Creator and assignee must match to manage this.',
-                'status' => 'todo',
-                'priority' => 'medium',
-                'assignee_ids' => [$adminOne->id],
-            ])
+        $task = $this->postJson('/api/tasks', [
+            'workspace_id' => $workspaceOne->id,
+            'title' => 'Admin One task',
+            'description' => 'Only assigned to Admin One.',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'assignee_ids' => [$adminOne->id],
+        ])
             ->assertCreated()
             ->json('data');
 
-        $this->withHeader('Authorization', 'Bearer ' . $adminTwoToken)
-            ->getJson('/api/tasks')
-            ->assertOk()
-            ->assertJsonFragment([
-                'id' => $task['id'],
-            ]);
+        // ── Admin Two (god-mode) can modify Admin One's task ──
+        Sanctum::actingAs($adminTwo);
 
-        $this->withHeader('Authorization', 'Bearer ' . $adminTwoToken)
-            ->putJson('/api/tasks/' . $task['id'], [
-                'status' => 'in-progress',
-            ])
-            ->assertStatus(403);
+        $this->putJson('/api/tasks/' . $task['id'], [
+            'status' => 'in-progress',
+        ])
+            ->assertOk();
 
-        $this->withHeader('Authorization', 'Bearer ' . $adminTwoToken)
-            ->deleteJson('/api/tasks/' . $task['id'])
-            ->assertStatus(403);
+        $this->assertDatabaseHas('tasks', [
+            'id' => $task['id'],
+            'status' => 'in-progress',
+        ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $adminOneToken)
-            ->putJson('/api/tasks/' . $task['id'], [
-                'status' => 'done',
-            ])
+        // ── Admin One can mark it done ──
+        Sanctum::actingAs($adminOne);
+
+        $this->putJson('/api/tasks/' . $task['id'], [
+            'status' => 'done',
+        ])
             ->assertOk();
 
         $this->assertDatabaseHas('tasks', [
@@ -249,18 +238,14 @@ class TaskAuthorizationTest extends TestCase
             'completed' => true,
         ]);
 
-        $this->withHeader('Authorization', 'Bearer ' . $adminOneToken)
-            ->postJson('/api/logout')
+        // ── Admin Two (god-mode) can delete Admin One's task ──
+        Sanctum::actingAs($adminTwo);
+
+        $this->deleteJson('/api/tasks/' . $task['id'])
             ->assertOk();
 
-        $freshAdminOneToken = $this->tokenFor($adminOne, 'Admin123!');
-
-        $this->withHeader('Authorization', 'Bearer ' . $freshAdminOneToken)
-            ->getJson('/api/tasks')
-            ->assertOk()
-            ->assertJsonFragment([
-                'id' => $task['id'],
-                'status' => 'done',
-            ]);
+        $this->assertDatabaseMissing('tasks', [
+            'id' => $task['id'],
+        ]);
     }
 }

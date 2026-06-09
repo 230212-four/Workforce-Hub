@@ -32,6 +32,7 @@ function normalizeNotification(notification) {
     readAt: notification.read_at || null,
     time: formatRelativeTime(notification.created_at),
     data: notification.data || {},
+    taskId: notification.data?.task_id || null,
     userId: notification.user_id,
     createdAt: notification.created_at || null
   }
@@ -81,8 +82,12 @@ export function useNotifications() {
   }
 
   async function markAllRead() {
-    const unread = notifications.value.filter(notification => !notification.read)
-    await Promise.all(unread.map(notification => markRead(notification.id)))
+    await axios.post('/api/notifications/mark-all-read')
+    notifications.value = notifications.value.map(notification => ({
+      ...notification,
+      read: true,
+      readAt: new Date().toISOString()
+    }))
   }
 
   return {

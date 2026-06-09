@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NeoInput from '../../components/ui/NeoInput.vue'
 import NeoButton from '../../components/ui/NeoButton.vue'
+import ConfirmModal from '../../components/ui/ConfirmModal.vue'
 import { useAuth } from '../../composables/useAuth'
 import { useTaskStore } from '../../composables/useTaskStore'
 import { useToast } from '../../composables/useToast'
@@ -15,6 +16,8 @@ const {
   users,
   loadWorkspaces,
   loadUsers,
+  isLoadingWorkspaces,
+  isLoadingUsers,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace
@@ -295,30 +298,54 @@ async function handleUserSubmit() {
   }
 }
 
-async function handleWorkspaceDelete(workspace) {
-  if (!window.confirm(`Delete workspace "${workspace.name}"? This cannot be undone.`)) return
+// ── Delete Confirmation ─────────────────────────────────────────────────────
+const showDeleteConfirm = ref(false)
+const pendingDelete = ref(null) // { type: 'workspace'|'user', item: {...} }
+
+function requestWorkspaceDelete(workspace) {
+  pendingDelete.value = { type: 'workspace', item: workspace }
+  showDeleteConfirm.value = true
+}
+
+function requestUserDelete(user) {
+  pendingDelete.value = { type: 'user', item: user }
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  const { type, item } = pendingDelete.value || {}
+  showDeleteConfirm.value = false
+  pendingDelete.value = null
+  if (!item) return
 
   try {
-    await deleteWorkspace(workspace.id)
-    addToast({ message: 'Workspace deleted.', type: 'success' })
-    closeDrawer()
+    if (type === 'workspace') {
+      await deleteWorkspace(item.id)
+      addToast({ message: 'Workspace deleted.', type: 'success' })
+      closeDrawer()
+    } else {
+      await deleteUser(item.id)
+      addToast({ message: 'User deleted.', type: 'success' })
+    }
     await refreshAll()
   } catch (error) {
-    addToast({ message: error?.response?.data?.message || 'Unable to delete the workspace.', type: 'error' })
+    addToast({ message: error?.response?.data?.message || `Unable to delete the ${type}.`, type: 'error' })
   }
 }
 
-async function handleUserDelete(user) {
-  if (!window.confirm(`Delete ${user.name}? This cannot be undone.`)) return
-
-  try {
-    await deleteUser(user.id)
-    addToast({ message: 'User deleted.', type: 'success' })
-    await refreshAll()
-  } catch (error) {
-    addToast({ message: error?.response?.data?.message || 'Unable to delete the user.', type: 'error' })
-  }
+function cancelDelete() {
+  showDeleteConfirm.value = false
+  pendingDelete.value = null
 }
+
+const deleteConfirmTitle = computed(() =>
+  pendingDelete.value?.type === 'workspace' ? 'Delete Workspace' : 'Delete User'
+)
+const deleteConfirmMessage = computed(() => {
+  if (!pendingDelete.value) return ''
+  const name = pendingDelete.value.item.name || 'this item'
+  return `Are you sure you want to delete &quot;${name}&quot;? This action cannot be undone.`
+})
 
 watch(
   () => route.query.tab,
@@ -408,7 +435,7 @@ onMounted(refreshAll)
 
           <div class="mt-3 flex items-center justify-end gap-2">
             <button class="neo-action-btn" @click.stop="openWorkspaceModal(workspace)">Edit</button>
-            <button class="neo-action-btn" @click.stop="handleWorkspaceDelete(workspace)">Delete</button>
+            <button class="neo-action-btn" @click.stop="requestWorkspaceDelete(workspace)">Delete</button>
           </div>
         </div>
       </div>
@@ -515,7 +542,7 @@ onMounted(refreshAll)
               <td class="text-right">
                 <div class="flex items-center justify-end gap-1.5">
                   <button class="neo-action-btn" @click="openUserModal(user)">Edit</button>
-                  <button class="neo-action-btn" @click="handleUserDelete(user)">Delete</button>
+                  <button class="neo-action-btn" @click="requestUserDelete(user)">Delete</button>
                 </div>
               </td>
             </tr>
@@ -583,7 +610,7 @@ onMounted(refreshAll)
             ✏ Edit
           </button>
           <button
-            @click="handleWorkspaceDelete(drawerWorkspace)"
+            @click="requestWorkspaceDelete(drawerWorkspace)"
             class="flex-1 py-2 border-2 border-black font-black text-xs uppercase tracking-wide text-black bg-rose-500 hover:bg-rose-600 brut-hover cursor-pointer transition-colors"
           >
             🗑 Delete
@@ -783,6 +810,17 @@ onMounted(refreshAll)
       </div>
     </transition>
     </Teleport>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmModal
+      :isOpen="showDeleteConfirm"
+      :title="deleteConfirmTitle"
+      :message="deleteConfirmMessage"
+      confirmLabel="Delete"
+      variant="danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
 
   </div><!-- /root -->
 </template>

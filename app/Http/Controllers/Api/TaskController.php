@@ -20,8 +20,11 @@ class TaskController extends Controller
 
     public function index(Request $request)
     {
+        $user = $request->user();
+
         $tasks = Task::query()
             ->with(['workspace', 'team', 'creator', 'assignee', 'assignedUsers'])
+            ->when($user->role !== 'admin', fn ($query) => $query->where('workspace_id', $user->workspace_id))
             ->when($request->filled('workspace_id'), fn ($query) => $query->where('workspace_id', $request->integer('workspace_id')))
             ->when($request->filled('team_id'), fn ($query) => $query->where('team_id', $request->integer('team_id')))
             ->when($request->filled('assigned_to_user_id'), fn ($query) => $query->whereHas('assignedUsers', fn ($assignedQuery) => $assignedQuery->where('users.id', $request->integer('assigned_to_user_id'))))
@@ -246,6 +249,10 @@ class TaskController extends Controller
 
     private function authorizeTaskUpdate(User $user, Task $task): void
     {
+        if ($user->role === 'admin') {
+            return;
+        }
+
         $isAssigned = $task->assignedUsers()->where('users.id', $user->id)->exists();
 
         if (! $isAssigned) {
