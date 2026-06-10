@@ -1,17 +1,31 @@
 # Workforce Hub
 
-Workforce Hub is a modern, collaborative team and task management application. Built as a Single Page Application (SPA) using **Laravel 12 (PHP)** and **Vue 3 (JS/Vite)**, it provides dynamic work organization, interactive task tracking, and role-based administration.
+Workforce Hub is a modern, collaborative team and task management board. Built as a Single Page Application (SPA) using **Laravel 12 (PHP)** and **Vue 3 (JS/Vite)**, it provides dynamic work organization, interactive task tracking, and role-based administration.
 
 ---
 
 ## Features Implemented
 
 *   **Secure Authentication & Session Management**: Built using Laravel Sanctum for API token-based authentication. Features secure user registration, login, profile editing, and password updating.
-*   **Interactive Kanban Board**: Fully functional Kanban task board allowing users to track progress across four stages (`Todo`, `In-Progress`, `Review`, and `Done`).
-*   **Advanced Task Management**: CRUD capabilities on tasks, including title, description, priority (low, medium, high), due dates, and multiple assignees (up to 5 per task).
+
+*   **Interactive Kanban Board**: Fully functional Kanban-style task board allowing users to track progress and easily drag/move tasks across four specific columns: To Do, In Progress, Testing, and Done.
+
+*   **Advanced Task Management**: Full CRUD capabilities on tasks, with scoped access based on user roles:
+    *   **Standard Users** can create and manage tasks by defining core details: Title, Description, Priority level (Low, Medium, High), Status, and Due Dates.
+    *   **Admin Users** possess all standard creation capabilities, but retain exclusive privileges for task allocation, acting as the sole role permitted to assign team members (up to 5 concurrent assignees) to a task.
+
+*   **Real-Time Dashboard Statistics**: A metrics suite that aggregates system data to provide instant visual summaries of productivity indicators:
+    *   **Total Tasks**
+    *   **Completed Tasks**
+    *   **Pending Tasks**
+    *   **Overdue Tasks**
+
 *   **Workspace & Team Administration**: Administrative control over workspaces (name, description, status, accent color) and organization of teams within specific workspaces.
+
 *   **Admin User Management**: Admin panel to monitor, create, update, and manage account statuses of all users within the system.
+
 *   **Notification Engine**: Real-time logging of user and task actions (e.g., assignment, status change, deletion) with a dedicated notification center for tracking unread notices.
+
 *   **Preferences & Theme Settings**: Customizable settings for active profiles including dark, light, and system theme preferences, alongside custom notification toggles.
 
 ---
@@ -113,11 +127,25 @@ php artisan migrate --seed
 
 ## Assumptions Made
 
-1.  **SPA Architecture**: The application operates strictly as a Single Page Application (SPA) where Laravel handles REST API requests and Sanctum session tokens, while Vue 3 and Vue Router manage client-side state and navigation.
-2.  **Role-Based Security**: The access model defines two roles (`admin` and standard user). Only administrators can create/modify workspaces, create teams, and manage standard user accounts.
-3.  **Workspace Constraints**: Normal users can only view and interact with tasks, teams, and members assigned to the same workspace as their own profile.
-4.  **Task Allocation limits**: A task must always have at least one assignee and can have up to a maximum of 5 concurrent assignees, all of whom must belong to the task's parent workspace.
-5.  **Local Storage and Notification Delivery**: Notifications are handled via database tables and log queues. Standard configuration assumes log-based mailers and sync queue drivers for local execution.
+**Theme & UI Philosophy (Soft Brutalism)**
+*   **User Experience over Aesthetic Extremes**: Assumed a "Soft Brutalism" approach rather than pure Neo-Brutalism. Pure Neo-Brutalism (thick white borders/solid shadows on dark backgrounds) creates "visual vibration" and severe eye strain during extended use.
+*   **Designed for Extended Daily Use**: Assumed the target audience uses this as a heavy-duty productivity tool (Kanban boards, dense data) for 8-hour workdays. The UI was dialed back to prevent dashboard fatigue.
+*   **Prioritized Accessibility & Readability**: Assumed modern contrast and Web Content Accessibility Guidelines (WCAG) compliance take precedence over high-contrast styling. Muted pastel accents, dark borders, and deep charcoal backgrounds (zinc-950) were used to ensure long-term readability without sacrificing the developer-focused aesthetic.
+
+**User Roles & Permissions**
+*   **Multi-Tenant Scoping**: Assumed a strict separation of data visibility based on roles for team-based workflows.
+*   **Admin Users**: Assumed global visibility, granting them access to view all tasks across the entire system.
+*   **Standard Users**: Assumed restricted access, limiting their visibility strictly to tasks within their assigned workspaces and tasks assigned directly to them.
+
+**System Navigation**
+*   **Power-User Access**: Assumed the target audience prefers keyboard-driven workflows, prompting the implementation of global command keys for faster navigation. This includes pressing N to instantly create a task and ⌘K (or Ctrl+K) to trigger the central command palette.
+
+**User Data & Validation**
+*   **Data Integrity Constraints**: Since validation rules were not explicitly provided in the requirements, assumed standard security best practices: usernames must be unique and carry a minimum length of 8 characters.
+
+**Task Allocation & Workspace Boundaries**
+*   **Assignee Constraints**: Assumed strict validation rules for task distribution based on standard team collaboration limits. Specifically, a task must always have at least 1 assignee and a maximum of 5 concurrent assignees, all of whom are restricted to users already belonging to that task's parent workspace.
+
 
 ---
 
