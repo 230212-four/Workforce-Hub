@@ -1,6 +1,6 @@
 # Workforce Hub
 
-Workforce Hub is a modern, collaborative team and task management application. Built as a Single Page Application (SPA) using **Laravel 12 (PHP)** and **Vue 3 (JS/Vite)**, it provides dynamic work organization, interactive task tracking, and role-based administration.
+Workforce Hub is a collaborative team and task management application built as a Single Page Application (SPA) combining Laravel 12 backend with Vue 3 frontend. It features an interactive Kanban board, real-time task tracking with priorities and due dates, workspace administration, and role-based user management. Designed for modern team collaboration with real-time notifications, multi-user task assignments, and customizable user preferences.
 
 ---
 
