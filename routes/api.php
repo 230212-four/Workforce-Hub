@@ -16,6 +16,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/me', [AuthController::class, 'updateProfile']);
     Route::put('/me/password', [AuthController::class, 'changePassword']);
     Route::put('/me/preferences', [AuthController::class, 'updatePreferences']);
+    Route::put('/me/workspace', [AuthController::class, 'switchWorkspace']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::middleware('admin.api')->group(function () {

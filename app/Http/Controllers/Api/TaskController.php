@@ -25,7 +25,7 @@ class TaskController extends Controller
         $tasks = Task::query()
             ->with(['workspace', 'team', 'creator', 'assignee', 'assignedUsers'])
             ->when($user->role !== 'admin', fn ($query) => $query->where('workspace_id', $user->workspace_id))
-            ->when($request->filled('workspace_id'), fn ($query) => $query->where('workspace_id', $request->integer('workspace_id')))
+            ->when($user->role === 'admin' && $request->filled('workspace_id'), fn ($query) => $query->where('workspace_id', $request->integer('workspace_id')))
             ->when($request->filled('team_id'), fn ($query) => $query->where('team_id', $request->integer('team_id')))
             ->when($request->filled('assigned_to_user_id'), fn ($query) => $query->whereHas('assignedUsers', fn ($assignedQuery) => $assignedQuery->where('users.id', $request->integer('assigned_to_user_id'))))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
@@ -120,12 +120,16 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task created.',
-            'data' => $task,
+            'data' => $this->transformTask($task),
         ], 201);
     }
 
     public function show(Request $request, Task $task)
     {
+        if ($request->user()->role !== 'admin' && (int) $task->workspace_id !== (int) $request->user()->workspace_id) {
+            throw new HttpResponseException(response()->json(['message' => 'Forbidden.'], 403));
+        }
+
         return response()->json([
             'data' => $this->transformTask($task->load(['workspace', 'team', 'creator', 'assignee', 'assignedUsers'])),
         ]);
@@ -220,7 +224,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task updated.',
-            'data' => $task,
+            'data' => $this->transformTask($task),
         ]);
     }
 

@@ -158,6 +158,17 @@ export function useAuth() {
     }
   }
 
+  async function switchWorkspace(workspaceId) {
+    const { data } = await axios.put('/api/me/workspace', {
+      workspace_id: workspaceId
+    })
+
+    currentUser.value = normalizeUser(data.user)
+    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(currentUser.value))
+
+    return currentUser.value
+  }
+
   async function fetchUsers(params = {}) {
     const { data } = await axios.get('/api/users', { params })
     return data.data
@@ -189,6 +200,7 @@ export function useAuth() {
     login,
     registerAdmin,
     logout,
+    switchWorkspace,
     fetchUsers,
     createUser,
     updateUser,

@@ -91,6 +91,14 @@ const workspaceInitials = (name) =>
 
 const drawerOpen     = ref(false)
 const drawerWorkspace = ref(null)
+const drawerMembers = computed(() => {
+  if (!drawerWorkspace.value?.id) return []
+
+  return users.value.filter(user => {
+    const workspaceId = user.workspaceId ?? user.workspace_id ?? user.workspace?.id ?? null
+    return String(workspaceId) === String(drawerWorkspace.value.id)
+  })
+})
 
 const openDrawer = (ws) => {
   drawerWorkspace.value = ws
@@ -624,6 +632,30 @@ onMounted(refreshAll)
               Members ({{ drawerWorkspace.usersCount || 0 }})
             </span>
           </div>
+
+          <div v-if="drawerMembers.length > 0" class="space-y-2">
+            <div
+              v-for="member in drawerMembers"
+              :key="member.id"
+              class="brut-border bg-neoCard px-3 py-2 flex items-center justify-between gap-3"
+            >
+              <div class="min-w-0">
+                <p class="text-sm font-black uppercase tracking-wide text-ink truncate">
+                  {{ member.name }}
+                </p>
+                <p class="text-[0.65rem] font-bold uppercase tracking-wide text-neoMuted truncate">
+                  {{ member.role }} · {{ member.email }}
+                </p>
+              </div>
+              <span :class="member.is_active ? 'badge-low' : 'badge-high'">
+                {{ member.is_active ? 'ACTIVE' : 'INACTIVE' }}
+              </span>
+            </div>
+          </div>
+
+          <p v-else class="text-xs font-bold text-neoMuted uppercase tracking-wide">
+            No active members found in this workspace.
+          </p>
 
           <p class="text-xs font-bold text-neoMuted">
             {{ drawerWorkspace.description || 'No description provided.' }}

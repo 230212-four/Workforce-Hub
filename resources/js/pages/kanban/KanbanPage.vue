@@ -18,6 +18,7 @@ const {
   canEditTask,
   canDeleteTask,
   canMoveTask,
+  workspaces,
   teams,
   members,
   isLoadingTasks,
@@ -27,9 +28,10 @@ const {
 const { isAdmin, isAuthenticated, currentUser } = useAuth()
 
 // ── Admin filters ──
+const workspaceFilter = ref('all')
 const adminTeamFilter = ref('all')
 const adminUserFilter = ref('all')
-const adminColumns = getFilteredColumns(adminTeamFilter, adminUserFilter)
+const adminColumns = getFilteredColumns(workspaceFilter, adminTeamFilter, adminUserFilter)
 
 // ── User toggle ──
 const showOnlyMine = ref(false)
@@ -290,6 +292,14 @@ const getColumnBodyBg = (colId) => {
       <label>GOD VIEW</label>
       <span class="text-neoMuted text-xs font-bold">|</span>
 
+      <label>Workspace</label>
+      <select id="filter-workspace" v-model="workspaceFilter" class="neo-select">
+        <option value="all">All Workspaces</option>
+        <option v-for="workspace in workspaces" :key="workspace.id" :value="String(workspace.id)">
+          {{ workspace.name }}
+        </option>
+      </select>
+
       <label>Team</label>
       <select id="filter-team" v-model="adminTeamFilter" class="neo-select">
         <option value="all">All Teams</option>
@@ -310,14 +320,14 @@ const getColumnBodyBg = (colId) => {
       <svg class="w-4 h-4 text-neoMuted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
-      <span class="text-xs font-black uppercase tracking-wider text-neoMuted">TEAM VIEW</span>
+      <span class="text-xs font-black uppercase tracking-wider text-neoMuted">WORKSPACE VIEW</span>
       <div class="neo-toggle-group">
         <button
           id="toggle-all-team"
           :class="['neo-toggle-btn', !showOnlyMine ? 'active' : '']"
           @click="showOnlyMine = false"
         >
-          All Team Tasks
+          All Workspace Tasks
         </button>
         <button
           id="toggle-my-tasks"

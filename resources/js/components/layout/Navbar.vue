@@ -6,6 +6,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useDarkMode } from '../../composables/useDarkMode'
 import NotificationDrawer from './NotificationDrawer.vue'
 import AccountSettingsModal from '../settings/AccountSettingsModal.vue'
+import WorkspaceSwitcherModal from '../settings/WorkspaceSwitcherModal.vue'
 
 const emit = defineEmits(['toggle-sidebar'])
 
@@ -16,6 +17,7 @@ const { isDarkMode, toggleDarkMode } = useDarkMode()
 
 const showNotifications     = ref(false)
 const showAccountSettings   = ref(false)
+const showWorkspaceSwitcher = ref(false)
 let refreshTimer = null
 
 // ── Notification Drawer ──
@@ -40,6 +42,14 @@ const handleNotificationTaskOpen = (task) => {
 
 const openAccountSettings  = () => { showAccountSettings.value = true  }
 const closeAccountSettings = () => { showAccountSettings.value = false }
+
+const openWorkspaceSwitcher = () => {
+  showWorkspaceSwitcher.value = true
+}
+
+const closeWorkspaceSwitcher = () => {
+  showWorkspaceSwitcher.value = false
+}
 
 const goToSettings = () => {
   router.push('/settings')
@@ -96,6 +106,15 @@ onBeforeUnmount(() => {
         <span class="text-xs font-black uppercase tracking-wider text-neoMuted">Workspace</span>
         <span class="text-xs text-neoMuted">/</span>
         <span class="text-xs font-black uppercase tracking-wider text-ink">{{ currentUser?.workspace?.name || 'No Workspace' }}</span>
+        <button
+          v-if="isAdmin"
+          id="workspace-switch-button"
+          @click="openWorkspaceSwitcher"
+          class="h-8 px-3 ml-2 brut-border bg-neoCard flex items-center justify-center brut-hover cursor-pointer text-[0.65rem] font-black uppercase tracking-wide text-ink"
+          title="Switch Workspace"
+        >
+          Switch
+        </button>
       </div>
 
       <!-- Mobile logo fallback (shown when hamburger present) -->
@@ -176,6 +195,24 @@ onBeforeUnmount(() => {
         </svg>
       </button>
 
+      <!-- Admin Workspace Switch -->
+      <button
+        v-if="isAdmin"
+        id="workspace-switch-mobile"
+        @click="openWorkspaceSwitcher"
+        class="md:hidden w-10 h-10 brut-border bg-neoCard flex items-center justify-center brut-hover cursor-pointer"
+        title="Switch Workspace"
+        aria-label="Switch Workspace"
+      >
+        <svg class="w-[18px] h-[18px] text-ink" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+          <path d="M4 19.5V4.5A1.5 1.5 0 0 1 5.5 3h13A1.5 1.5 0 0 1 20 4.5v15" />
+          <path d="M4 19.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5" />
+          <path d="M8 7h8" />
+          <path d="M8 11h8" />
+          <path d="M8 15h5" />
+        </svg>
+      </button>
+
       <!-- User Avatar — click to open Account Settings -->
       <button
         id="user-avatar"
@@ -214,5 +251,10 @@ onBeforeUnmount(() => {
   <AccountSettingsModal
     :isOpen="showAccountSettings"
     @close="closeAccountSettings"
+  />
+
+  <WorkspaceSwitcherModal
+    :isOpen="showWorkspaceSwitcher"
+    @close="closeWorkspaceSwitcher"
   />
 </template>

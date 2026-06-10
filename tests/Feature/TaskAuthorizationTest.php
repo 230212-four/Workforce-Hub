@@ -36,7 +36,7 @@ class TaskAuthorizationTest extends TestCase
         ], $overrides));
     }
 
-    public function test_everyone_can_see_all_tasks_but_only_creator_assignees_can_modify_them(): void
+    public function test_everyone_can_see_tasks_in_their_workspace_but_only_creator_assignees_can_modify_them(): void
     {
         $admin = $this->admin();
 
@@ -170,6 +170,74 @@ class TaskAuthorizationTest extends TestCase
         $this->assertDatabaseMissing('tasks', [
             'id' => $ownTask['id'],
         ]);
+    }
+
+    public function test_non_admins_can_only_see_tasks_from_their_workspace_but_cannot_modify_other_workspace_tasks(): void
+    {
+        $adminOne = $this->admin([
+            'username' => 'admin_one',
+            'email' => 'admin1@example.com',
+        ]);
+        $adminTwo = $this->admin([
+            'username' => 'admin_two',
+            'email' => 'admin2@example.com',
+        ]);
+
+        $workspaceOne = Workspace::query()->create([
+            'name' => 'Workspace One',
+            'status' => 'active',
+            'created_by_user_id' => $adminOne->id,
+        ]);
+        $workspaceTwo = Workspace::query()->create([
+            'name' => 'Workspace Two',
+            'status' => 'active',
+            'created_by_user_id' => $adminTwo->id,
+        ]);
+
+        $adminOne->update(['workspace_id' => $workspaceOne->id]);
+        $adminTwo->update(['workspace_id' => $workspaceTwo->id]);
+
+        $employee = $this->employee([
+            'username' => 'employee_user_one',
+            'email' => 'employee1@example.com',
+            'workspace_id' => $workspaceOne->id,
+        ]);
+
+        Sanctum::actingAs($adminOne);
+        $workspaceOneTask = $this->postJson('/api/tasks', [
+            'workspace_id' => $workspaceOne->id,
+            'title' => 'Workspace One Task',
+            'description' => 'Visible in the employee workspace.',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'assignee_ids' => [$adminOne->id],
+        ])
+            ->assertCreated()
+            ->json('data');
+
+        Sanctum::actingAs($adminTwo);
+        $otherWorkspaceTask = $this->postJson('/api/tasks', [
+            'workspace_id' => $workspaceTwo->id,
+            'title' => 'Workspace Two Task',
+            'description' => 'Visible to everyone.',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'assignee_ids' => [$adminTwo->id],
+        ])
+            ->assertCreated()
+            ->json('data');
+
+        Sanctum::actingAs($employee);
+
+        $this->getJson('/api/tasks')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $workspaceOneTask['id']])
+            ->assertJsonMissing(['id' => $otherWorkspaceTask['id']]);
+
+        $this->putJson('/api/tasks/' . $otherWorkspaceTask['id'], [
+            'status' => 'in-progress',
+        ])
+            ->assertStatus(403);
     }
 
     public function test_admins_can_manage_any_task_regardless_of_assignment(): void

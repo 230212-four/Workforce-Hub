@@ -13,7 +13,6 @@ const { currentUser, isAdmin } = useAuth()
 
 const {
   tasks,
-  userTasks,
   totalTasks,
   completedTasks,
   inProgressTasks,
@@ -37,7 +36,7 @@ const displayCompleted = computed(() => isAdmin.value ? completedTasks.value : u
 const displayInProgress = computed(() => isAdmin.value ? inProgressTasks.value : userInProgressTasks.value)
 const displayOverdue = computed(() => isAdmin.value ? overdueTasks.value : userOverdueTasks.value)
 const displayRate = computed(() => isAdmin.value ? completionRate.value : userCompletionRate.value)
-const statsPeriod = computed(() => isAdmin.value ? 'ALL WORKSPACE' : 'ALL TASKS')
+const statsPeriod = computed(() => isAdmin.value ? 'ALL WORKSPACE' : 'YOUR TASKS')
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -58,10 +57,19 @@ const dateString = computed(() => {
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`
 })
 
+const assignedTasks = computed(() => {
+  if (!currentUser.value.id) return []
+
+  return tasks.value.filter(task =>
+    Array.isArray(task.assignedUsers)
+    && task.assignedUsers.some(user => user.id === currentUser.value.id)
+  )
+})
+
 const recentTasks = computed(() => {
   const pool = isAdmin.value
     ? tasks.value
-    : userTasks.value
+    : assignedTasks.value
   return pool.slice().sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1
     return 0
@@ -122,7 +130,7 @@ const getStatusLabel = (status) => {
         <p class="text-sm text-neoMuted font-medium">
           You have
           <span class="bg-neoYellow px-1.5 py-0.5 brut-border text-ink font-black text-xs">{{ displayTotal }}</span>
-          open tasks{{ isAdmin ? ' across the workspace' : ' visible to you' }}.
+          open tasks{{ isAdmin ? ' across the workspace' : ' assigned to you' }}.
         </p>
       </div>
       <button

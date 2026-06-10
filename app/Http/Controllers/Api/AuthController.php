@@ -7,9 +7,11 @@ use App\Http\Requests\Api\LoginRequest;
 use App\Http\Requests\Api\RegisterAdminRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -143,6 +145,30 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Preferences updated.',
             'preferences' => $merged,
+        ]);
+    }
+
+    public function switchWorkspace(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->role !== 'admin') {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Forbidden.',
+            ], 403));
+        }
+
+        $validated = $request->validate([
+            'workspace_id' => ['required', Rule::exists('workspaces', 'id')],
+        ]);
+
+        $user->forceFill([
+            'workspace_id' => $validated['workspace_id'],
+        ])->save();
+
+        return response()->json([
+            'message' => 'Workspace switched.',
+            'user' => $user->fresh()->load(['workspace', 'team']),
         ]);
     }
 }

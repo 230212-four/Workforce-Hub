@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { syncCurrentUser, useAuth } from './useAuth'
 
 const tasks = ref([])
@@ -15,6 +15,7 @@ const isLoadingWorkspaces = ref(false)
 const isLoadingUsers = ref(false)
 const isLoadingTeams = ref(false)
 const MAX_TASK_ASSIGNEES = 5
+const auth = useAuth()
 
 const statusLabels = {
   todo: 'TO DO',
@@ -46,6 +47,17 @@ function normalizeUser(user) {
   }
 }
 
+function toDateOnly(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return String(value).split('T')[0]
+  }
+
+  return date.toISOString().split('T')[0]
+}
+
 function normalizeTask(task) {
   const assignedUsers = Array.isArray(task.assigned_users)
     ? task.assigned_users.map(normalizeUser)
@@ -59,7 +71,7 @@ function normalizeTask(task) {
     description: task.description || '',
     status: task.status || 'todo',
     priority: task.priority || 'medium',
-    dueDate: task.due_date || '',
+    dueDate: toDateOnly(task.due_date),
     completed: Boolean(task.completed),
     completedAt: task.completed_at || null,
     workspaceId: task.workspace_id || null,
@@ -107,6 +119,17 @@ function normalizeTeam(team) {
 
 function resolveWorkspaceIdFromUser(user) {
   return user?.workspaceId ?? user?.workspace_id ?? user?.workspace?.id ?? null
+}
+
+function resetTaskState() {
+  tasks.value = []
+  workspaces.value = []
+  users.value = []
+  teams.value = []
+  tasksLoaded.value = false
+  workspacesLoaded.value = false
+  usersLoaded.value = false
+  teamsLoaded.value = false
 }
 
 function canUserModifyTask(task, userId, isAdmin = false) {
@@ -173,12 +196,28 @@ function toWorkspacePayload(payload) {
 }
 
 async function loadTasks(forceRefresh = false) {
+  const { currentUser, isAdmin } = useAuth()
+
   if (tasksLoaded.value && !forceRefresh) return tasks.value
   if (isLoadingTasks.value) return tasks.value
 
   isLoadingTasks.value = true
   try {
-    const { data } = await axios.get('/api/tasks')
+    const params = {}
+
+    if (!isAdmin.value) {
+      const workspaceId = resolveWorkspaceIdFromUser(currentUser.value)
+
+      if (!workspaceId) {
+        tasks.value = []
+        tasksLoaded.value = true
+        return tasks.value
+      }
+
+      params.workspace_id = workspaceId
+    }
+
+    const { data } = await axios.get('/api/tasks', { params })
     tasks.value = (data.data || []).map(normalizeTask)
     tasksLoaded.value = true
     return tasks.value
@@ -256,6 +295,13 @@ async function loadTeams() {
 async function loadInitialData() {
   await Promise.all([loadTasks(), loadWorkspaces(), loadUsers(), loadTeams()])
 }
+
+watch(
+  () => [auth.currentUser.value.id, auth.currentUser.value.role],
+  () => {
+    resetTaskState()
+  }
+)
 
 function requireAdmin() {
   const { isAdmin } = useAuth()
@@ -388,6 +434,19 @@ async function deleteWorkspace(workspaceId) {
 
 export function useTaskStore() {
   const { currentUser, isAdmin } = useAuth()
+  const currentWorkspaceId = computed(() => resolveWorkspaceIdFromUser(currentUser.value))
+  const workspaceTasks = computed(() => {
+    if (isAdmin.value) return tasks.value
+
+    if (!currentWorkspaceId.value) return []
+
+    return tasks.value.filter(task => String(task.workspaceId) === String(currentWorkspaceId.value))
+  })
+  const myTasks = computed(() => {
+    if (isAdmin.value) return tasks.value
+
+    return workspaceTasks.value.filter(task => isTaskAssignedToCurrentUser(task))
+  })
 
   const totalTasks = computed(() => tasks.value.filter(task => !task.completed).length)
   const completedTasks = computed(() => tasks.value.filter(task => task.completed).length)
@@ -403,8 +462,7 @@ export function useTaskStore() {
   })
 
   const userTasks = computed(() => {
-    if (isAdmin.value) return tasks.value
-    return tasks.value.filter(task => isTaskAssignedToCurrentUser(task))
+    return isAdmin.value ? tasks.value : myTasks.value
   })
 
   const userTotalTasks = computed(() => userTasks.value.filter(task => !task.completed).length)
@@ -454,9 +512,13 @@ export function useTaskStore() {
     return users.value.filter(user => user.is_active && resolveWorkspaceIdFromUser(user) === workspaceId)
   }
 
-  function getFilteredColumns(teamFilter, userFilter) {
+  function getFilteredColumns(workspaceFilter, teamFilter, userFilter) {
     return computed(() => {
       let pool = tasks.value
+
+      if (workspaceFilter.value && workspaceFilter.value !== 'all') {
+        pool = pool.filter(task => String(task.workspaceId) === String(workspaceFilter.value))
+      }
 
       if (teamFilter.value && teamFilter.value !== 'all') {
         pool = pool.filter(task => task.team === teamFilter.value)
@@ -472,10 +534,10 @@ export function useTaskStore() {
 
   function getUserColumns(showOnlyMine) {
     return computed(() => {
-      let pool = userTasks.value
+      let pool = isAdmin.value ? tasks.value : workspaceTasks.value
 
       if (showOnlyMine.value) {
-        pool = pool.filter(task => canEditTask(task))
+        pool = pool.filter(task => isAdmin.value ? canEditTask(task) : isTaskAssignedToCurrentUser(task))
       }
 
       return buildColumns(pool)
@@ -543,6 +605,8 @@ export function useTaskStore() {
     openTasks,
     columns,
     userTasks,
+    workspaceTasks,
+    myTasks,
     userTotalTasks,
     userCompletedTasks,
     userInProgressTasks,
